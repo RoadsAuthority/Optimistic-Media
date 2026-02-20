@@ -14,16 +14,21 @@ export default function ApprovalsPage() {
   if (!currentUser) return null;
   if (!allRequests || !allUsers) return <div>Loading approvals...</div>;
 
-  const teamMemberIds = allUsers
+  const isAdmin = currentUser.role === 'ADMIN' || currentUser.role === 'HR';
+
+  const approvableUserIds = allUsers
     .filter(u => {
-      // Admins see all requests (to approve Managers and others)
-      if (currentUser.role === 'ADMIN' || currentUser.role === 'HR') return true;
+      if (isAdmin) {
+        // Admins can approve everyone EXCEPT themselves
+        // (their own leave must be approved by another admin)
+        return u.id !== currentUser.id;
+      }
       // Managers see only their direct reports
       return u.managerId === currentUser.id;
     })
     .map(u => u.id);
 
-  const teamRequests = allRequests.filter(r => teamMemberIds.includes(r.userId));
+  const teamRequests = allRequests.filter(r => approvableUserIds.includes(r.userId));
   const pendingRequests = teamRequests.filter(r => r.status === 'PENDING');
   const processedRequests = teamRequests.filter(r => r.status !== 'PENDING');
 

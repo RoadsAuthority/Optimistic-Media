@@ -76,7 +76,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           role: data.role as UserRole,
           managerId: data.manager_id,
           avatar: data.avatar_url,
-          department: data.department
+          department: data.department,
+          whatsapp: data.whatsapp,
+          companyId: data.company_id
         });
       } else {
         // PROFILE DOES NOT EXIST BY ID - Try finding by email (for manual creations)
@@ -101,7 +103,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               role: profileByEmail.role as UserRole,
               managerId: profileByEmail.manager_id,
               avatar: profileByEmail.avatar_url,
-              department: profileByEmail.department
+              department: profileByEmail.department,
+              whatsapp: profileByEmail.whatsapp,
+              companyId: profileByEmail.company_id
             });
             console.log(`Linked manual profile for ${email}`);
             return;
@@ -155,7 +159,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role: newProfile.role as UserRole,
             managerId: newProfile.manager_id,
             avatar: newProfile.avatar_url,
-            department: newProfile.department
+            department: newProfile.department,
+            whatsapp: newProfile.whatsapp,
+            companyId: newProfile.company_id
           });
           console.log(`Auto-created ADMIN profile for ${email}`);
         }
@@ -194,7 +200,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 export function useAuth() {
   const context = useContext(AuthContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    // Return a safe fallback during HMR / fast-refresh remount cycles
+    // instead of crashing the entire tree.
+    return {
+      currentUser: null,
+      isLoading: true,
+      login: async () => false,
+      logout: async () => { },
+    } as AuthContextType;
   }
   return context;
 }

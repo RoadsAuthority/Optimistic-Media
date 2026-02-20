@@ -222,7 +222,7 @@ const safeCreateNotification = async (notification: Omit<Notification, 'id' | 'i
 };
 
 // Actions
-export const createLeaveRequest = async (request: Omit<LeaveRequest, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'daysRequested'>, daysRequested: number) => {
+export const createLeaveRequest = async (request: Omit<LeaveRequest, 'id' | 'createdAt' | 'updatedAt' | 'status' | 'daysRequested'>, daysRequested: number, filedBy?: string) => {
     // 0. Check for existing PENDING requests
     const { data: existingPending, error: checkError } = await supabase
         .from('leave_requests')
@@ -245,7 +245,10 @@ export const createLeaveRequest = async (request: Omit<LeaveRequest, 'id' | 'cre
         reason: request.reason,
         is_emergency: request.isEmergency || false,
         attachment_url: request.attachmentUrl || null,
-        status: 'PENDING'
+        status: 'PENDING',
+        // Track who filed this request — used to enforce conflict-of-interest rule
+        // (the admin who filed cannot also approve it)
+        filed_by: filedBy || null,
     }).select().single();
 
     if (error) throw error;
@@ -286,17 +289,26 @@ export const updateLeaveRequestStatus = async (id: string, status: LeaveStatus, 
 
     if (fetchError) throw fetchError;
 
-    const { error } = await supabase
+    // Build the update payload — only include optional columns if they are likely to exist
+    const updatePayload: Record<string, any> = { status };
+    if (managerId) updatePayload.manager_id = managerId;
+    if (rejectionReason !== undefined) updatePayload.rejection_reason = rejectionReason ?? null;
+    updatePayload.updated_at = new Date().toISOString();
+
+    let { error } = await supabase
         .from('leave_requests')
-        .update({
-            status,
-            manager_id: managerId,
-            rejection_reason: rejectionReason || null,
-            updated_at: new Date().toISOString()
-        })
+        .update(updatePayload)
         .eq('id', id);
 
-    if (error) throw error;
+    // If the full update fails (e.g. schema columns don't exist yet), fall back to status-only
+    if (error) {
+        console.warn('Full update failed, trying status-only update:', error.message);
+        const fallback = await supabase
+            .from('leave_requests')
+            .update({ status })
+            .eq('id', id);
+        if (fallback.error) throw fallback.error;
+    }
 
     // 2. If Approved, Update Balance
     if (status === 'APPROVED' && request) {
@@ -496,45 +508,82 @@ export const createInvitation = async (email: string, role: string, department: 
     return data;
 };
 
-export const createProfile = async (profile: Omit<User, 'id'>, performedBy?: string) => {
-    // Generate a random ID since we aren't using Supabase Auth for these manual entries
-    const id = crypto.randomUUID();
+// UUID v4 generator that works in both secure (HTTPS) and non-secure (HTTP) contexts
+const generateUUID = (): string => {
+    try {
+        if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+            return crypto.randomUUID();
+        }
+    } catch (_) { /* fall through */ }
 
-    const { data, error } = await supabase.from('profiles').insert({
-        id,
-        name: profile.name,
-        email: profile.email || `${id.split('-')[0]}@no-email.optimisticmedia.group`, // Fallback for email-less users
-        role: profile.role,
-        department: profile.department,
-        whatsapp: profile.whatsapp,
-        manager_id: profile.managerId || null
-    }).select().single();
-
-    if (error) throw error;
-
-    // Initialize leave balances for new user
-    const { data: leaveTypes } = await supabase.from('leave_types').select('*');
-    if (leaveTypes) {
-        const balances = leaveTypes.map(lt => ({
-            user_id: id,
-            leave_type_id: lt.id,
-            total_days: lt.annual_allowance,
-            remaining_days: lt.annual_allowance,
-            used_days: 0
-        }));
-        await supabase.from('leave_balances').insert(balances);
-    }
-
-    // Audit Log
-    await safeLogAudit({
-        action: 'PROFILE_CREATED_MANUALLY',
-        performed_by: performedBy || 'SYSTEM',
-        target_id: id,
-        details: `Created profile for ${profile.name}`
+    // Polyfill for non-secure (HTTP) contexts where crypto.randomUUID is unavailable
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        const v = c === 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
     });
+};
 
-    queryClient.invalidateQueries({ queryKey: ['users'] });
-    return data;
+export const createProfile = async (profile: Omit<User, 'id'>, performedBy?: string) => {
+    try {
+        const id = generateUUID();
+
+        const email = profile.email?.trim()
+            ? profile.email.trim()
+            : `${id.split('-')[0]}@no-email.optimisticmedia.group`;
+
+        console.log('Creating profile via RPC:', { id, name: profile.name, email, role: profile.role });
+
+        // Use a SECURITY DEFINER RPC function to bypass RLS.
+        // Allows admins to insert profiles without matching auth.uid().
+        const { data, error } = await supabase.rpc('create_employee_profile', {
+            p_id: id,
+            p_name: profile.name,
+            p_email: email,
+            p_role: profile.role,
+            p_department: profile.department,
+            p_whatsapp: profile.whatsapp || null,
+            p_manager_id: profile.managerId || null,
+        });
+
+        if (error) {
+            console.error('RPC error in createProfile:', error);
+            throw new Error(`Failed to create employee: ${error.message}`);
+        }
+
+        const newUser = data as any;
+        const newUserId = newUser?.id ?? id;
+
+        // Initialize leave balances
+        const { data: leaveTypes } = await supabase.from('leave_types').select('*');
+        if (leaveTypes && leaveTypes.length > 0) {
+            const balances = leaveTypes.map(lt => ({
+                user_id: newUserId,
+                leave_type_id: lt.id,
+                total_days: lt.annual_allowance,
+                remaining_days: lt.annual_allowance,
+                used_days: 0,
+            }));
+            const { error: balanceError } = await supabase.from('leave_balances').insert(balances);
+            if (balanceError) {
+                console.warn('Failed to initialize leave balances:', balanceError.message);
+            }
+        }
+
+        // Audit Log
+        await safeLogAudit({
+            action: 'PROFILE_CREATED_MANUALLY',
+            performed_by: performedBy || 'SYSTEM',
+            target_id: newUserId,
+            details: `Created profile for ${profile.name}`,
+        });
+
+        queryClient.invalidateQueries({ queryKey: ['users'] });
+        return newUser;
+    } catch (error: any) {
+        console.error('Unexpected error in createProfile:', error);
+        throw error;
+    }
 };
 
 export const markNotificationAsRead = async (id: string, userId: string) => {

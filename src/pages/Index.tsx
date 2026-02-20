@@ -255,6 +255,136 @@ function ManagerDashboard() {
   );
 }
 
+function AdminDashboard() {
+  const { currentUser } = useAuth();
+  const allRequests = useLeaveRequests();
+  const allUsers = useUsers();
+
+  if (!currentUser || !allRequests || !allUsers) return <div>Loading dashboard...</div>;
+
+  // Requests the current admin can action (all users except themselves)
+  const approvableUserIds = allUsers
+    .filter(u => u.id !== currentUser.id)
+    .map(u => u.id);
+
+  const approvableRequests = allRequests.filter(r => approvableUserIds.includes(r.userId));
+  const pendingCount = approvableRequests.filter(r => r.status === 'PENDING').length;
+
+  const currentMonth = new Date().getMonth();
+  const currentYear = new Date().getFullYear();
+  const approvedThisMonth = allRequests.filter(r => {
+    const d = new Date(r.startDate);
+    return r.status === 'APPROVED' && d.getMonth() === currentMonth && d.getFullYear() === currentYear;
+  }).length;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const onLeaveToday = allRequests.filter(r => {
+    if (r.status !== 'APPROVED') return false;
+    const start = new Date(r.startDate);
+    const end = new Date(r.endDate);
+    start.setHours(0, 0, 0, 0);
+    end.setHours(0, 0, 0, 0);
+    return today >= start && today <= end;
+  }).length;
+
+  // Admin's own leave requests (shown separately at the bottom)
+  const myRequests = allRequests.filter(r => r.userId === currentUser.id);
+  const myPendingCount = myRequests.filter(r => r.status === 'PENDING').length;
+
+  return (
+    <DashboardLayout
+      title={`Admin Panel — ${currentUser.name.split(' ')[0]}`}
+      subtitle="Manage leave requests, employees, and company settings"
+    >
+      <div className="space-y-6">
+        {/* Hero */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 to-primary/80 px-8 py-10 text-white shadow-lg border-b-4 border-primary/30">
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="space-y-4 max-w-lg">
+              <div className="inline-flex items-center gap-2 rounded-full bg-primary/20 px-3 py-1 text-xs font-semibold backdrop-blur-md border border-primary/30">
+                <ShieldCheck className="h-3 w-3 text-primary" />
+                <span>Administrator</span>
+              </div>
+              <h2 className="text-3xl font-bold tracking-tight">Admin Control Centre</h2>
+              <p className="text-white/70 leading-relaxed">
+                Review pending leave requests, manage employees, and keep the team running smoothly.
+              </p>
+              <div className="flex gap-4">
+                <Link to="/approvals">
+                  <Button className="font-semibold shadow-sm bg-primary hover:bg-primary/90">
+                    Review Pending{pendingCount > 0 ? ` (${pendingCount})` : ''}
+                  </Button>
+                </Link>
+                <Link to="/employees">
+                  <Button variant="ghost" className="text-white hover:bg-white/10 underline-offset-4 hover:underline">
+                    Manage Staff
+                  </Button>
+                </Link>
+              </div>
+            </div>
+            <div className="hidden lg:flex items-center justify-center">
+              <div className="h-24 w-24 rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-4 shadow-2xl animate-float">
+                <img src="/logo.jpeg" alt="Logo" className="h-full w-full object-contain filter brightness-150" />
+              </div>
+            </div>
+          </div>
+          <div className="absolute -right-20 -top-20 h-64 w-64 rounded-full bg-primary/10 blur-3xl opacity-50" />
+          <div className="absolute -left-10 -bottom-10 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
+        </div>
+
+        {/* Stats */}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatCard
+            title="Awaiting My Approval"
+            value={pendingCount}
+            icon={<Clock className="h-6 w-6" />}
+          />
+          <StatCard
+            title="Total Employees"
+            value={allUsers.length}
+            icon={<Users className="h-6 w-6" />}
+          />
+          <StatCard
+            title="Approved This Month"
+            value={approvedThisMonth}
+            icon={<CheckCircle2 className="h-6 w-6" />}
+          />
+          <StatCard
+            title="Staff on Leave Today"
+            value={onLeaveToday}
+            icon={<Calendar className="h-6 w-6" />}
+          />
+        </div>
+
+        {/* My pending leave notice */}
+        {myPendingCount > 0 && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-800 p-4 flex items-center gap-3">
+            <Clock className="h-5 w-5 text-amber-600 shrink-0" />
+            <p className="text-sm text-amber-800 dark:text-amber-300">
+              You have <strong>{myPendingCount}</strong> pending leave request{myPendingCount > 1 ? 's' : ''} awaiting approval by another admin.
+            </p>
+            <Link to="/my-leaves" className="ml-auto shrink-0">
+              <Button variant="outline" size="sm" className="border-amber-300 text-amber-700 hover:bg-amber-100">View</Button>
+            </Link>
+          </div>
+        )}
+
+        {/* Main content */}
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <RecentRequestsTable requests={allRequests} showUser />
+          </div>
+          <div className="space-y-6">
+            <PendingApprovalsCard requests={approvableRequests} />
+            <UpcomingLeaveWidget requests={allRequests} />
+          </div>
+        </div>
+      </div>
+    </DashboardLayout>
+  );
+}
+
 function HRDashboard() {
   const users = useUsers();
   const leaveRequests = useLeaveRequests();
@@ -368,6 +498,8 @@ export default function Index() {
 
 
   switch (currentUser.role) {
+    case 'ADMIN':
+      return <AdminDashboard />;
     case 'MANAGER':
       return <ManagerDashboard />;
     case 'HR':

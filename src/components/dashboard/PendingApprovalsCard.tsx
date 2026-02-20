@@ -88,8 +88,12 @@ export function PendingApprovalsCard({ requests }: PendingApprovalsCardProps) {
   };
 
   const toggleSelectAll = () => {
+    // Only select requests the current user is allowed to action
+    const actionable = pendingRequests
+      .filter(r => currentUser?.id !== (r as any).filedBy)
+      .map(r => r.id);
     setSelectedIds(prev =>
-      prev.length === pendingRequests.length ? [] : pendingRequests.map(r => r.id)
+      prev.length === actionable.length ? [] : actionable
     );
   };
 
@@ -138,82 +142,95 @@ export function PendingApprovalsCard({ requests }: PendingApprovalsCardProps) {
             No pending approvals
           </div>
         ) : (
-          pendingRequests.map((request) => (
-            <div
-              key={request.id}
-              className={`flex items-center justify-between p-3 rounded-lg border bg-card transition-colors ${selectedIds.includes(request.id) ? 'border-primary bg-primary/5' : 'hover:bg-accent/50'
-                }`}
-            >
-              <div className="flex items-center gap-3">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8"
-                  onClick={() => toggleSelect(request.id)}
-                >
-                  {selectedIds.includes(request.id) ? (
-                    <CheckSquare className="h-5 w-5 text-primary" />
-                  ) : (
-                    <Square className="h-5 w-5 text-muted-foreground" />
-                  )}
-                </Button>
-                <Avatar className="h-9 w-9">
-                  <AvatarImage src={request.user?.avatar} />
-                  <AvatarFallback>
-                    {request.user?.name.split(' ').map(n => n[0]).join('')}
-                  </AvatarFallback>
-                </Avatar>
-                <div>
-                  <p className="font-medium text-sm">
-                    {request.user?.name}
-                    {request.isEmergency && (
-                      <span className="ml-2 bg-red-100 text-red-700 text-[10px] font-bold px-1.5 py-0.5 rounded animate-pulse">
-                        EMERGENCY
-                      </span>
+          pendingRequests.map((request) => {
+            const filedByCurrentUser = currentUser?.id === (request as any).filedBy;
+            return (
+              <div
+                key={request.id}
+                className={`flex items-center justify-between p-3 rounded-lg border bg-card transition-colors ${selectedIds.includes(request.id) ? 'border-primary bg-primary/5' : 'hover:bg-accent/50'
+                  }`}
+              >
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8"
+                    disabled={filedByCurrentUser}
+                    onClick={() => toggleSelect(request.id)}
+                  >
+                    {selectedIds.includes(request.id) ? (
+                      <CheckSquare className="h-5 w-5 text-primary" />
+                    ) : (
+                      <Square className="h-5 w-5 text-muted-foreground" />
                     )}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {request.leaveType?.name} • {request.daysRequested} days
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {format(new Date(request.startDate), 'MMM d')} - {format(new Date(request.endDate), 'MMM d')}
-                  </p>
+                  </Button>
+                  <Avatar className="h-9 w-9">
+                    <AvatarImage src={request.user?.avatar} />
+                    <AvatarFallback>
+                      {request.user?.name.split(' ').map(n => n[0]).join('')}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div>
+                    <p className="font-medium text-sm">
+                      {request.user?.name}
+                      {request.isEmergency && (
+                        <span className="ml-2 bg-red-100 text-red-700 text-[10px] font-bold px-1.5 py-0.5 rounded animate-pulse">
+                          EMERGENCY
+                        </span>
+                      )}
+                      {filedByCurrentUser && (
+                        <span className="ml-2 bg-amber-100 text-amber-700 text-[10px] font-semibold px-1.5 py-0.5 rounded">
+                          Filed by you — another admin must approve
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {request.leaveType?.name} • {request.daysRequested} days
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {format(new Date(request.startDate), 'MMM d')} - {format(new Date(request.endDate), 'MMM d')}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex gap-1">
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-approved hover:text-approved hover:bg-approved/10"
+                    disabled={filedByCurrentUser}
+                    title={filedByCurrentUser ? 'You filed this request — another admin must approve' : 'Approve'}
+                    onClick={() => handleApprove(request.id)}
+                  >
+                    <CheckCircle2 className="h-5 w-5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-8 w-8 text-rejected hover:text-rejected hover:bg-rejected/10"
+                    disabled={filedByCurrentUser}
+                    title={filedByCurrentUser ? 'You filed this request — another admin must reject' : 'Reject'}
+                    onClick={() => setRejectingId(request.id)}
+                  >
+                    <XCircle className="h-5 w-5" />
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button size="icon" variant="ghost" className="h-8 w-8">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => setViewingRequest(request)}>
+                        <FileText className="h-4 w-4 mr-2" />
+                        View Details
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </div>
-
-              <div className="flex gap-1">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 text-approved hover:text-approved hover:bg-approved/10"
-                  onClick={() => handleApprove(request.id)}
-                >
-                  <CheckCircle2 className="h-5 w-5" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="h-8 w-8 text-rejected hover:text-rejected hover:bg-rejected/10"
-                  onClick={() => setRejectingId(request.id)}
-                >
-                  <XCircle className="h-5 w-5" />
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button size="icon" variant="ghost" className="h-8 w-8">
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem onClick={() => setViewingRequest(request)}>
-                      <FileText className="h-4 w-4 mr-2" />
-                      View Details
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
 

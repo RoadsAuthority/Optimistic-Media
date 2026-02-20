@@ -52,6 +52,7 @@ export function LeaveRequestForm() {
   const { currentUser } = useAuth();
   const navigate = useNavigate();
   const [selectedLeaveType, setSelectedLeaveType] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const userBalances = useLeaveBalances(currentUser?.id);
   const leaveTypes = useLeaveTypes();
@@ -104,16 +105,21 @@ export function LeaveRequestForm() {
       return;
     }
 
+    setIsSubmitting(true);
     try {
+      const targetUserId = data.userId || currentUser.id;
+      // If an admin is filing on behalf of someone else, record who filed it
+      const filedBy = (isAdmin && targetUserId !== currentUser.id) ? currentUser.id : undefined;
+
       await createLeaveRequest({
-        userId: data.userId || currentUser.id,
+        userId: targetUserId,
         leaveTypeId: data.leaveTypeId,
         startDate: data.startDate.toISOString(),
         endDate: data.endDate.toISOString(),
         reason: data.reason || '',
         isEmergency: data.isEmergency,
         attachmentUrl: data.attachmentUrl,
-      }, daysRequested);
+      }, daysRequested, filedBy);
 
       toast.success('Leave request submitted successfully!', {
         description: `${daysRequested} days of ${selectedType?.name} requested`,
@@ -124,6 +130,8 @@ export function LeaveRequestForm() {
     } catch (error) {
       console.error("Failed to submit leave request", error);
       toast.error('Failed to submit leave request');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -400,9 +408,9 @@ export function LeaveRequestForm() {
             <Button
               type="submit"
               className="w-full"
-              disabled={loading || hasInsufficientBalance || exceedsAnnualAllowance || daysRequested === 0 || hasPendingRequest}
+              disabled={isSubmitting || hasInsufficientBalance || exceedsAnnualAllowance || daysRequested === 0 || hasPendingRequest}
             >
-              {loading ? 'Submitting...' : 'Submit Request'}
+              {isSubmitting ? 'Submitting...' : 'Submit Request'}
             </Button>
           </div>
         </form>

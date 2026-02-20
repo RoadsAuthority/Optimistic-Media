@@ -187,8 +187,9 @@ export default function EmployeesPage() {
       toast.success('Employee created successfully');
       setIsManualOpen(false);
       setManualData({ name: '', email: '', role: 'EMPLOYEE', department: '', whatsapp: '' });
-    } catch (error) {
-      toast.error('Failed to create employee');
+    } catch (error: any) {
+      console.error('handleManualCreate error:', error);
+      toast.error(error?.message || 'Failed to create employee');
     } finally {
       setLoading(false);
     }
@@ -582,6 +583,27 @@ export default function EmployeesPage() {
                     placeholder="e.g. Cleaning"
                   />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Manager (Optional)</Label>
+                <Select
+                  value={manualData.managerId || 'none'}
+                  onValueChange={(val) => setManualData({ ...manualData, managerId: val === 'none' ? undefined : val })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select manager" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No Manager</SelectItem>
+                    {users
+                      .filter(u => u.role === 'MANAGER' || u.role === 'ADMIN')
+                      .map(manager => (
+                        <SelectItem key={manager.id} value={manager.id}>
+                          {manager.name} ({manager.role})
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
                 <Label>WhatsApp Number</Label>
