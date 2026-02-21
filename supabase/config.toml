@@ -1,1 +1,8 @@
 project_id = "iewlgqbuwcytusqpwrfw"
+
+# Allow unauthenticated calls (Accept Invite page uses these before user is logged in)
+[functions.request-verification-code]
+verify_jwt = false
+
+[functions.verify-code]
+verify_jwt = false

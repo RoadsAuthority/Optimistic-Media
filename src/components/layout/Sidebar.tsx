@@ -35,6 +35,8 @@ const employeeNavItems = [
 
 const managerNavItems = [
   { href: '/', icon: Home, label: 'Dashboard' },
+  { href: '/request', icon: FileText, label: 'New Request' },
+  { href: '/my-leaves', icon: ClipboardList, label: 'My Leaves' },
   { href: '/approvals', icon: Clock, label: 'Approvals' },
   { href: '/team', icon: Users, label: 'My Team' },
   { href: '/calendar', icon: Calendar, label: 'Team Calendar' },
@@ -50,7 +52,11 @@ const hrNavItems = [
 ];
 
 const adminNavItems = [
-  ...hrNavItems,
+  { href: '/', icon: Home, label: 'Dashboard' },
+  { href: '/request', icon: FileText, label: 'New Request' },
+  { href: '/my-leaves', icon: ClipboardList, label: 'My Leaves' },
+  { href: '/approvals', icon: Clock, label: 'Approvals' },
+  ...hrNavItems.filter(item => item.href !== '/'), // Remove duplicate Dashboard
   { href: '/admin', icon: Shield, label: 'Admin Panel' },
 ];
 

@@ -23,12 +23,26 @@ export default function ApprovalsPage() {
         // (their own leave must be approved by another admin)
         return u.id !== currentUser.id;
       }
-      // Managers see only their direct reports
-      return u.managerId === currentUser.id;
+      // Managers see only their direct reports (non-admin employees)
+      return u.managerId === currentUser.id && u.role !== 'ADMIN' && u.role !== 'HR';
     })
     .map(u => u.id);
 
-  const teamRequests = allRequests.filter(r => approvableUserIds.includes(r.userId));
+  // Filter requests: admins see all approvable requests, managers only see their direct reports
+  const teamRequests = allRequests.filter(r => {
+    const requestUser = allUsers.find(u => u.id === r.userId);
+    if (!requestUser) return false;
+    
+    if (isAdmin) {
+      // Admins can approve all requests except their own
+      return r.userId !== currentUser.id;
+    } else {
+      // Managers can only approve their direct reports (non-admin employees)
+      return requestUser.managerId === currentUser.id && 
+             requestUser.role !== 'ADMIN' && 
+             requestUser.role !== 'HR';
+    }
+  });
   const pendingRequests = teamRequests.filter(r => r.status === 'PENDING');
   const processedRequests = teamRequests.filter(r => r.status !== 'PENDING');
 

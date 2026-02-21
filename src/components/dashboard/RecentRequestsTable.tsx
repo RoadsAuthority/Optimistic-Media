@@ -53,9 +53,10 @@ export function RecentRequestsTable({ requests, showUser = false, canCancel = fa
 
     try {
       await cancelLeaveRequest(id, currentUser.id);
-      toast.success('Request cancelled');
-    } catch (error) {
-      toast.error('Failed to cancel request');
+      toast.success('Leave request cancelled successfully');
+    } catch (error: any) {
+      console.error('Error cancelling leave request:', error);
+      toast.error(error?.message || 'Failed to cancel request');
     }
   };
 

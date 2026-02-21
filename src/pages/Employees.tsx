@@ -1,7 +1,7 @@
 
 import { useState } from 'react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
-import { useUsers, useLeaveBalances, useLeaveTypes, updateProfile } from '@/hooks/useData';
+import { useUsers, useLeaveBalances, useLeaveTypes, updateProfile, sendTwilioMessage } from '@/hooks/useData';
 import { User, LeaveBalance, UserRole } from '@/types/leave';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -70,24 +70,114 @@ export default function EmployeesPage() {
   const [generatedLink, setGeneratedLink] = useState('');
   const [copied, setCopied] = useState(false);
 
+  const sendEmailInvite = (link: string) => {
+    const subject = encodeURIComponent('Invitation to join Optimistic Media Group');
+    const body = encodeURIComponent(
+      `Hello,\n\nYou have been invited to join Optimistic Media Group as a ${inviteData.role} in the ${inviteData.department} department.\n\nPlease click the link below to set up your account:\n\n${link}\n\nBest regards,\nThe Team`
+    );
+    window.location.href = `mailto:${inviteData.email}?subject=${subject}&body=${body}`;
+  };
+
+  const getWhatsAppMessageBody = (link: string) => {
+    const roleName = inviteData.role || 'Team Member';
+    const deptName = inviteData.department || 'Our Team';
+    return `*Invitation from Optimistic Media Group*\n\nHello! You've been invited to join our team as a *${roleName}* in the *${deptName}* department.\n\nPlease click the link below to set up your account and access the portal:\n\n${link}`;
+  };
+
+  const sendWhatsAppInvite = (link: string) => {
+    if (!link) return;
+
+    const message = getWhatsAppMessageBody(link);
+    const phone = inviteData.whatsapp?.replace(/\D/g, '');
+
+    if (phone) {
+      sendTwilioMessage(inviteData.whatsapp!, message, 'whatsapp')
+        .then((res) => {
+          if (res.error) {
+            toast.warning('Twilio not configured or failed. Opening WhatsApp…');
+            openWhatsAppUrl(link);
+          } else {
+            toast.success('Invitation sent via Twilio WhatsApp');
+          }
+        })
+        .catch(() => {
+          toast.warning('Could not send via Twilio. Opening WhatsApp…');
+          openWhatsAppUrl(link);
+        });
+    } else {
+      openWhatsAppUrl(link);
+    }
+  };
+
+  const openWhatsAppUrl = (link: string) => {
+    const message = getWhatsAppMessageBody(link);
+    const text = encodeURIComponent(message);
+    const cleanNumber = inviteData.whatsapp?.replace(/\D/g, '');
+    const whatsappUrl = cleanNumber
+      ? `https://api.whatsapp.com/send/?phone=${cleanNumber}&text=${text}`
+      : `https://api.whatsapp.com/send/?text=${text}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
   const handleGenerateInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
       const { createInvitation } = await import('@/hooks/useData');
 
+      // Validate required fields
+      if (!inviteData.role || !inviteData.department) {
+        toast.error('Please fill in all required fields (role and department)');
+        return;
+      }
+
       let finalEmail = inviteData.email;
       if (!finalEmail && inviteMethod === 'WHATSAPP') {
         const tempId = Math.random().toString(36).substring(7);
-        finalEmail = `wa-${tempId}@no-email.optimisticmedia.group`;
+        finalEmail = `wa+${tempId}@invite.optimisticmedia.group`;
       }
 
-      const invite = await createInvitation(finalEmail, inviteData.role, inviteData.department, currentUser?.id, inviteData.whatsapp);
+      if (!finalEmail && inviteMethod === 'EMAIL') {
+        toast.error('Email address is required');
+        return;
+      }
+
+      console.log('Generating invitation with data:', {
+        email: finalEmail,
+        role: inviteData.role,
+        department: inviteData.department,
+        managerId: inviteData.managerId,
+        whatsapp: inviteData.whatsapp
+      });
+
+      const invite = await createInvitation(
+        finalEmail, 
+        inviteData.role, 
+        inviteData.department, 
+        currentUser?.id, 
+        inviteData.whatsapp,
+        inviteData.managerId || undefined
+      );
+
+      if (!invite || !invite.token) {
+        throw new Error('Invitation created but token is missing');
+      }
+
       const link = `${window.location.origin}/accept-invite?token=${invite.token}`;
+      console.log('Generated invitation link:', link);
       setGeneratedLink(link);
-      toast.success('Invitation link generated!');
+
+      // Automatically open the appropriate channel
+      if (inviteMethod === 'EMAIL') {
+        sendEmailInvite(link);
+      } else if (inviteMethod === 'WHATSAPP') {
+        sendWhatsAppInvite(link);
+      }
+
+      toast.success('Invitation link generated and ready to send!');
     } catch (error: any) {
-      toast.error('Failed to generate invite: ' + error.message);
+      console.error('Failed to generate invite:', error);
+      toast.error('Failed to generate invite: ' + (error?.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -119,31 +209,13 @@ export default function EmployeesPage() {
   };
 
   const handleSendEmail = () => {
-    const subject = encodeURIComponent('Invitation to join Optimistic Media Group');
-    const body = encodeURIComponent(`Hello,\n\nYou have been invited to join Optimistic Media Group as a ${inviteData.role} in the ${inviteData.department} department.\n\nPlease click the link below to set up your account:\n\n${generatedLink}\n\nBest regards,\nThe Team`);
-    window.location.href = `mailto:${inviteData.email}?subject=${subject}&body=${body}`;
+    if (!generatedLink) return;
+    sendEmailInvite(generatedLink);
   };
 
   const handleSendWhatsApp = () => {
     if (!generatedLink) return;
-
-    // Use standard message with fallback role/dept if they are missing
-    const roleName = inviteData.role || 'Team Member';
-    const deptName = inviteData.department || 'Our Team';
-
-    const message = `*Invitation from Optimistic Media Group*\n\nHello! You've been invited to join our team as a *${roleName}* in the *${deptName}* department.\n\nPlease click the link below to set up your account and access the portal:\n\n${generatedLink}`;
-
-    const text = encodeURIComponent(message);
-
-    // Remove ALL non-digit characters - this is what WhatsApp API expects (international format no +)
-    const cleanNumber = inviteData.whatsapp.replace(/\D/g, '');
-
-    // construct the most compatible URL - trailing slash after 'send' is sometimes required for redirects
-    const whatsappUrl = cleanNumber
-      ? `https://api.whatsapp.com/send/?phone=${cleanNumber}&text=${text}`
-      : `https://api.whatsapp.com/send/?text=${text}`;
-
-    window.open(whatsappUrl, '_blank');
+    sendWhatsAppInvite(generatedLink);
   };
 
   const resetInviteForm = () => {
@@ -436,8 +508,13 @@ export default function EmployeesPage() {
                             onChange={(e) => setInviteData({ ...inviteData, whatsapp: e.target.value })}
                           />
                           <p className="text-[10px] text-muted-foreground mt-1 px-1">
-                            Include international country code without + (e.g. 44 for UK, 234 for Nigeria)
+                            Include international country code without + (e.g. 264 for Namibia, 44 for UK).
                           </p>
+                          {import.meta.env.VITE_TWILIO_SANDBOX_JOIN_CODE && import.meta.env.VITE_TWILIO_SANDBOX_NUMBER && (
+                            <p className="text-xs text-amber-600 dark:text-amber-500 mt-1 px-1 rounded bg-amber-50 dark:bg-amber-950/40 p-2 border border-amber-200 dark:border-amber-800">
+                              <strong>Twilio Sandbox:</strong> Recipient must send <code className="bg-amber-100 dark:bg-amber-900/60 px-1 rounded">join {import.meta.env.VITE_TWILIO_SANDBOX_JOIN_CODE}</code> to {import.meta.env.VITE_TWILIO_SANDBOX_NUMBER} in WhatsApp first, then they can receive the invite.
+                            </p>
+                          )}
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="invite-email-opt">Email (Optional)</Label>

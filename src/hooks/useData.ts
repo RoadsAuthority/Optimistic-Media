@@ -179,15 +179,23 @@ export const useNotifications = (userId?: string) => {
     return useQuery({
         queryKey: ['notifications', userId],
         enabled: !!userId,
+        refetchOnWindowFocus: true,
+        refetchInterval: 30000, // Refetch every 30 seconds to catch new notifications
+        staleTime: 0, // Always consider data stale so it refetches on invalidation
         queryFn: async () => {
+            console.log('Fetching notifications for user:', userId);
             const { data, error } = await supabase
                 .from('notifications')
                 .select('*')
                 .eq('user_id', userId!)
                 .order('created_at', { ascending: false });
 
-            if (error) throw error;
+            if (error) {
+                console.error('Error fetching notifications:', error);
+                throw error;
+            }
 
+            console.log('Notifications fetched:', data?.length || 0, 'notifications');
             return data.map((n: any) => ({
                 id: n.id,
                 userId: n.user_id,
@@ -197,6 +205,9 @@ export const useNotifications = (userId?: string) => {
                 isRead: n.is_read,
                 createdAt: n.created_at
             }));
+        },
+        onError: (error) => {
+            console.error('useNotifications query error:', error);
         }
     }).data;
 };
@@ -207,17 +218,38 @@ import { queryClient } from '@/lib/queryClient';
 // Helper for safe notification creation
 const safeCreateNotification = async (notification: Omit<Notification, 'id' | 'isRead' | 'createdAt'>) => {
     try {
-        const { error } = await supabase.from('notifications').insert({
+        console.log('Creating notification for user:', notification.userId, notification.title);
+        const { data, error } = await supabase.from('notifications').insert({
             user_id: notification.userId,
             title: notification.title,
             message: notification.message,
             type: notification.type || 'info'
-        });
+        }).select();
+        
         if (error) {
-            console.warn('Failed to create notification:', error.message);
+            console.error('Failed to create notification:', error.message, error);
+            return false;
         }
+        
+        console.log('Notification created successfully:', data);
+        
+        // Invalidate notifications query for the user who received the notification
+        // Use refetchType: 'active' to immediately refetch active queries
+        await queryClient.invalidateQueries({ 
+            queryKey: ['notifications', notification.userId],
+            refetchType: 'active' 
+        });
+        
+        // Also invalidate all notification queries as a fallback
+        queryClient.invalidateQueries({ 
+            queryKey: ['notifications'],
+            refetchType: 'active'
+        });
+        
+        return true;
     } catch (err) {
         console.error('Notification creation failed unexpectedly:', err);
+        return false;
     }
 };
 
@@ -261,9 +293,29 @@ export const createLeaveRequest = async (request: Omit<LeaveRequest, 'id' | 'cre
         details: 'Created leave request'
     });
 
-    // 3. Notify relevant users (e.g., manager if exists)
-    const { data: userData } = await supabase.from('profiles').select('manager_id').eq('id', request.userId).single();
-    if (userData?.manager_id) {
+    // 3. Notify relevant users
+    const { data: userData } = await supabase.from('profiles').select('manager_id, role').eq('id', request.userId).single();
+    
+    // If the requester is an admin, notify all other admins
+    if (userData?.role === 'ADMIN' || userData?.role === 'HR') {
+        const { data: admins } = await supabase
+            .from('profiles')
+            .select('id')
+            .in('role', ['ADMIN', 'HR'])
+            .neq('id', request.userId);
+        
+        if (admins && admins.length > 0) {
+            for (const admin of admins) {
+                await safeCreateNotification({
+                    userId: admin.id,
+                    title: 'New Admin Leave Request',
+                    message: `An admin leave request has been submitted and requires your approval.`,
+                    type: 'info'
+                });
+            }
+        }
+    } else if (userData?.manager_id) {
+        // For non-admin users, notify their manager
         await safeCreateNotification({
             userId: userData.manager_id,
             title: 'New Leave Request',
@@ -383,6 +435,16 @@ export const cancelLeaveRequest = async (id: string, userId: string) => {
 
     if (fetchError) throw fetchError;
 
+    // Security check: Users can only cancel their own requests
+    if (request.user_id !== userId) {
+        throw new Error('You can only cancel your own leave requests');
+    }
+
+    // Can only cancel PENDING or APPROVED requests
+    if (request.status !== 'PENDING' && request.status !== 'APPROVED') {
+        throw new Error(`Cannot cancel a ${request.status.toLowerCase()} request`);
+    }
+
     // 2. If Approved, Reverse Balance
     if (request.status === 'APPROVED') {
         const { data: balance } = await supabase.from('leave_balances')
@@ -403,11 +465,27 @@ export const cancelLeaveRequest = async (id: string, userId: string) => {
     const { error } = await supabase
         .from('leave_requests')
         .update({ status: 'CANCELLED', updated_at: new Date().toISOString() })
-        .eq('id', id);
+        .eq('id', id)
+        .eq('user_id', userId); // Additional security: ensure we only update user's own requests
 
     if (error) throw error;
 
-    // 4. Audit Log
+    // 4. Notify manager/admin if request was pending or approved
+    if (request.status === 'PENDING' || request.status === 'APPROVED') {
+        // Get user's manager or admins who might need to know
+        const { data: userData } = await supabase.from('profiles').select('manager_id, role').eq('id', userId).single();
+        
+        if (userData?.manager_id) {
+            await safeCreateNotification({
+                userId: userData.manager_id,
+                title: 'Leave Request Cancelled',
+                message: `A leave request has been cancelled by the employee.`,
+                type: 'info'
+            });
+        }
+    }
+
+    // 5. Audit Log
     await safeLogAudit({
         action: 'LEAVE_REQUEST_CANCELLED',
         performed_by: userId,
@@ -419,6 +497,7 @@ export const cancelLeaveRequest = async (id: string, userId: string) => {
     queryClient.invalidateQueries({ queryKey: ['leaveRequests'] });
     queryClient.invalidateQueries({ queryKey: ['leaveBalances'] });
     queryClient.invalidateQueries({ queryKey: ['auditLogs'] });
+    queryClient.invalidateQueries({ queryKey: ['notifications'] });
 };
 
 export const deleteLeaveRequest = async (id: string, userId: string) => {
@@ -482,30 +561,120 @@ export const updateProfile = async (id: string, updates: Partial<User>, performe
 
 
 export const createInvitation = async (email: string, role: string, department: string, performedBy?: string, whatsapp?: string, managerId?: string) => {
-    const expiresAt = new Date();
-    expiresAt.setMinutes(expiresAt.getMinutes() + 15);
-    const token = crypto.randomUUID(); // Manually generate token to ensure it exists
+    try {
+        console.log('Creating invitation for:', { email, role, department, managerId });
 
-    const { data, error } = await supabase.from('invitations').insert({
-        email,
-        role,
-        department,
-        token,
-        manager_id: managerId || null,
-        expires_at: expiresAt.toISOString()
-    }).select().single();
+        // 0. Prevent duplicates against existing users
+        if (email) {
+            const { data: existingProfileByEmail, error: profileEmailError } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('email', email)
+                .maybeSingle();
+            if (profileEmailError) {
+                console.error('Error checking existing profile by email:', profileEmailError);
+            }
+            if (existingProfileByEmail) {
+                throw new Error('This email is already registered to a user.');
+            }
+        }
 
-    if (error) throw error;
+        if (whatsapp) {
+            const { data: existingProfileByWhatsapp, error: profileWhatsappError } = await supabase
+                .from('profiles')
+                .select('id')
+                .eq('whatsapp', whatsapp)
+                .maybeSingle();
+            if (profileWhatsappError) {
+                console.error('Error checking existing profile by whatsapp:', profileWhatsappError);
+            }
+            if (existingProfileByWhatsapp) {
+                throw new Error('This WhatsApp number is already registered to a user.');
+            }
+        }
 
-    // Audit Log
-    await safeLogAudit({
-        action: 'INVITATION_GENERATED',
-        performed_by: performedBy || 'SYSTEM',
-        target_id: data.id,
-        details: `Generated invitation for ${email} as ${role}`
-    });
+        // 1. Prevent duplicate active invitations
+        if (email) {
+            const { data: existingInviteByEmail, error: inviteEmailError } = await supabase
+                .from('invitations')
+                .select('id, used_at')
+                .eq('email', email)
+                .is('used_at', null)
+                .maybeSingle();
+            if (inviteEmailError) {
+                console.error('Error checking existing invitation by email:', inviteEmailError);
+            }
+            if (existingInviteByEmail) {
+                throw new Error('An active invitation already exists for this email.');
+            }
+        }
 
-    return data;
+        if (whatsapp) {
+            const { data: existingInviteByWhatsapp, error: inviteWhatsappError } = await supabase
+                .from('invitations')
+                .select('id, used_at')
+                .eq('whatsapp', whatsapp)
+                .is('used_at', null)
+                .maybeSingle();
+            if (inviteWhatsappError) {
+                console.error('Error checking existing invitation by whatsapp:', inviteWhatsappError);
+            }
+            if (existingInviteByWhatsapp) {
+                throw new Error('An active invitation already exists for this WhatsApp number.');
+            }
+        }
+
+        const expiresAt = new Date();
+        expiresAt.setMinutes(expiresAt.getMinutes() + 15);
+        // Use our safe UUID generator to avoid crypto.randomUUID() issues
+        const token = generateUUID();
+
+        console.log('Generated token:', token);
+
+        const { data, error } = await supabase.from('invitations').insert({
+            email,
+            role,
+            department,
+            token,
+            manager_id: managerId || null,
+            whatsapp: whatsapp || null,
+            expires_at: expiresAt.toISOString()
+        }).select().single();
+
+        if (error) {
+            console.error('Error creating invitation:', error);
+            throw new Error(`Failed to create invitation: ${error.message}`);
+        }
+
+        if (!data) {
+            throw new Error('Invitation created but no data returned');
+        }
+
+        if (!data.token) {
+            console.error('Invitation data missing token:', data);
+            throw new Error('Invitation created but token is missing');
+        }
+
+        console.log('Invitation created successfully:', { id: data.id, token: data.token });
+
+        // Audit Log (don't let this fail the invitation creation)
+        try {
+            await safeLogAudit({
+                action: 'INVITATION_GENERATED',
+                performed_by: performedBy || 'SYSTEM',
+                target_id: data.id,
+                details: `Generated invitation for ${email} as ${role}`
+            });
+        } catch (auditError) {
+            console.warn('Failed to log audit for invitation:', auditError);
+            // Don't throw - invitation was created successfully
+        }
+
+        return data;
+    } catch (error: any) {
+        console.error('createInvitation error:', error);
+        throw error;
+    }
 };
 
 // UUID v4 generator that works in both secure (HTTPS) and non-secure (HTTP) contexts
@@ -528,9 +697,39 @@ export const createProfile = async (profile: Omit<User, 'id'>, performedBy?: str
     try {
         const id = generateUUID();
 
-        const email = profile.email?.trim()
-            ? profile.email.trim()
-            : `${id.split('-')[0]}@no-email.optimisticmedia.group`;
+        const rawEmail = profile.email?.trim();
+        const email = rawEmail
+            ? rawEmail
+            : `${id.split('-')[0]}@invite.optimisticmedia.group`;
+
+        // Prevent creating a second profile with the same email/whatsapp
+        if (rawEmail) {
+            const { data: existingByEmail, error: emailCheckError } = await supabase
+                .from('profiles')
+                .select('id, role')
+                .eq('email', email)
+                .maybeSingle();
+            if (emailCheckError) {
+                console.error('Error checking existing profile by email:', emailCheckError);
+            }
+            if (existingByEmail) {
+                throw new Error('A user with this email already exists.');
+            }
+        }
+
+        if (profile.whatsapp) {
+            const { data: existingByWhatsapp, error: whatsappCheckError } = await supabase
+                .from('profiles')
+                .select('id, role')
+                .eq('whatsapp', profile.whatsapp)
+                .maybeSingle();
+            if (whatsappCheckError) {
+                console.error('Error checking existing profile by whatsapp:', whatsappCheckError);
+            }
+            if (existingByWhatsapp) {
+                throw new Error('A user with this WhatsApp number already exists.');
+            }
+        }
 
         console.log('Creating profile via RPC:', { id, name: profile.name, email, role: profile.role });
 
@@ -593,8 +792,16 @@ export const markNotificationAsRead = async (id: string, userId: string) => {
         .eq('id', id)
         .eq('user_id', userId);
 
-    if (error) throw error;
-    queryClient.invalidateQueries({ queryKey: ['notifications', userId] });
+    if (error) {
+        console.error('Error marking notification as read:', error);
+        throw error;
+    }
+    
+    // Invalidate and refetch immediately
+    await queryClient.invalidateQueries({ 
+        queryKey: ['notifications', userId],
+        refetchType: 'active'
+    });
 };
 
 export const markAllNotificationsAsRead = async (userId: string) => {
@@ -604,10 +811,108 @@ export const markAllNotificationsAsRead = async (userId: string) => {
         .eq('user_id', userId)
         .eq('is_read', false);
 
-    if (error) throw error;
-    queryClient.invalidateQueries({ queryKey: ['notifications', userId] });
+    if (error) {
+        console.error('Error marking all notifications as read:', error);
+        throw error;
+    }
+    
+    // Invalidate and refetch immediately
+    await queryClient.invalidateQueries({ 
+        queryKey: ['notifications', userId],
+        refetchType: 'active'
+    });
 };
 
+/** Send SMS or WhatsApp via Twilio (Supabase Edge Function). Requires Twilio secrets set in Supabase. */
+export const sendTwilioMessage = async (
+    to: string,
+    body: string,
+    channel: 'sms' | 'whatsapp' = 'sms'
+): Promise<{ sid?: string; error?: string }> => {
+    const { data, error } = await supabase.functions.invoke('send-twilio-message', {
+        body: { to, body, channel },
+    });
 
+    if (error) {
+        console.error('Twilio invoke error:', error);
+        // 401 usually means expired/invalid session; clear it so user can log in again
+        if (error.message?.includes('401') || (error as any)?.context?.status === 401) {
+            await supabase.auth.signOut();
+        }
+        return { error: error.message };
+    }
 
+    const payload = data as { sid?: string; error?: string; code?: number } | null;
+    if (payload?.error) {
+        console.error('Twilio function error:', payload.error);
+        return { error: payload.error };
+    }
 
+    return { sid: payload?.sid };
+};
+
+/** Request a verification code sent to the phone via Twilio (Edge Function: stores code, sends via Content template). */
+export const requestVerificationCode = async (to: string): Promise<{ ok?: boolean; error?: string }> => {
+    const { data, error } = await supabase.functions.invoke('request-verification-code', { body: { to } });
+
+    if (error) {
+        console.error('requestVerificationCode error:', error);
+        return { error: error.message };
+    }
+
+    const payload = data as { ok?: boolean; error?: string } | null;
+    if (payload?.error) return { error: payload.error };
+    return { ok: true };
+};
+
+/** Verify a phone + code (Edge Function). Returns { valid: boolean }. */
+export const verifyPhoneCode = async (phone: string, code: string): Promise<{ valid: boolean; error?: string }> => {
+    const { data, error } = await supabase.functions.invoke('verify-code', { body: { phone, code } });
+
+    if (error) {
+        console.error('verifyPhoneCode error:', error);
+        return { valid: false, error: error.message };
+    }
+
+    const payload = data as { valid?: boolean; error?: string } | null;
+    if (payload?.error) return { valid: false, error: payload.error };
+    return { valid: payload?.valid === true };
+};
+
+/** Send verification code via Twilio Content template (e.g. WhatsApp). Uses your template contentSid and passes code as variable "1". */
+export const sendTwilioVerificationCode = async (
+    to: string,
+    code: string,
+    options: {
+        channel?: 'sms' | 'whatsapp';
+        contentSid?: string;
+        contentVariableKey?: string;
+        from?: string;
+    } = {}
+): Promise<{ sid?: string; error?: string }> => {
+    const {
+        channel = 'whatsapp',
+        contentSid = 'HX229f5a04fd0510ce1b071852155d3e75',
+        contentVariableKey = '1',
+        from,
+    } = options;
+
+    const contentVariables = JSON.stringify({ [contentVariableKey]: code });
+
+    const { data, error } = await supabase.functions.invoke('send-twilio-message', {
+        body: { to, channel, contentSid, contentVariables, from },
+    });
+
+    if (error) {
+        console.error('Twilio verification invoke error:', error);
+        return { error: error.message };
+    }
+
+    const payload = data as { sid?: string; error?: string } | null;
+    if (payload?.error) {
+        console.error('Twilio verification function error:', payload.error);
+        return { error: payload.error };
+    }
+
+    return { sid: payload?.sid };
+};

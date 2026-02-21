@@ -25,20 +25,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Check active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        fetchProfile(session.user.id, session.user.email!);
-      } else {
+    async function initSession() {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.user) {
         setIsLoading(false);
+        return;
       }
-    });
+      // Validate session (catches invalid/expired refresh token)
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error || !user) {
+        await supabase.auth.signOut();
+        setCurrentUser(null);
+        setIsLoading(false);
+        return;
+      }
+      fetchProfile(user.id, user.email!);
+    }
+    initSession();
 
-    // Listen for changes
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
+      if (!session?.user) {
+        setCurrentUser(null);
+        setIsLoading(false);
+        return;
+      }
+      if (session.user) {
         setIsLoading(true);
         fetchProfile(session.user.id, session.user.email!);
       } else {

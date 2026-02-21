@@ -90,7 +90,7 @@ export function PendingApprovalsCard({ requests }: PendingApprovalsCardProps) {
   const toggleSelectAll = () => {
     // Only select requests the current user is allowed to action
     const actionable = pendingRequests
-      .filter(r => currentUser?.id !== (r as any).filedBy)
+      .filter(r => currentUser?.id !== (r as any).filedBy && currentUser?.id !== r.userId)
       .map(r => r.id);
     setSelectedIds(prev =>
       prev.length === actionable.length ? [] : actionable
@@ -143,7 +143,10 @@ export function PendingApprovalsCard({ requests }: PendingApprovalsCardProps) {
           </div>
         ) : (
           pendingRequests.map((request) => {
+            // Prevent self-approval: check if user filed it OR if it's the user's own request
             const filedByCurrentUser = currentUser?.id === (request as any).filedBy;
+            const isOwnRequest = currentUser?.id === request.userId;
+            const cannotApprove = filedByCurrentUser || isOwnRequest;
             return (
               <div
                 key={request.id}
@@ -155,7 +158,7 @@ export function PendingApprovalsCard({ requests }: PendingApprovalsCardProps) {
                     variant="ghost"
                     size="icon"
                     className="h-8 w-8"
-                    disabled={filedByCurrentUser}
+                    disabled={cannotApprove}
                     onClick={() => toggleSelect(request.id)}
                   >
                     {selectedIds.includes(request.id) ? (
@@ -178,9 +181,9 @@ export function PendingApprovalsCard({ requests }: PendingApprovalsCardProps) {
                           EMERGENCY
                         </span>
                       )}
-                      {filedByCurrentUser && (
+                      {cannotApprove && (
                         <span className="ml-2 bg-amber-100 text-amber-700 text-[10px] font-semibold px-1.5 py-0.5 rounded">
-                          Filed by you — another admin must approve
+                          {filedByCurrentUser ? 'Filed by you' : 'Your request'} — another admin must approve
                         </span>
                       )}
                     </p>
@@ -198,8 +201,8 @@ export function PendingApprovalsCard({ requests }: PendingApprovalsCardProps) {
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8 text-approved hover:text-approved hover:bg-approved/10"
-                    disabled={filedByCurrentUser}
-                    title={filedByCurrentUser ? 'You filed this request — another admin must approve' : 'Approve'}
+                    disabled={cannotApprove}
+                    title={cannotApprove ? 'You cannot approve this request — another admin must approve' : 'Approve'}
                     onClick={() => handleApprove(request.id)}
                   >
                     <CheckCircle2 className="h-5 w-5" />
@@ -208,8 +211,8 @@ export function PendingApprovalsCard({ requests }: PendingApprovalsCardProps) {
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8 text-rejected hover:text-rejected hover:bg-rejected/10"
-                    disabled={filedByCurrentUser}
-                    title={filedByCurrentUser ? 'You filed this request — another admin must reject' : 'Reject'}
+                    disabled={cannotApprove}
+                    title={cannotApprove ? 'You cannot reject this request — another admin must reject' : 'Reject'}
                     onClick={() => setRejectingId(request.id)}
                   >
                     <XCircle className="h-5 w-5" />

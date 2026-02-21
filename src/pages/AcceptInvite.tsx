@@ -1,7 +1,7 @@
-
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { requestVerificationCode, verifyPhoneCode } from '@/hooks/useData';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -18,6 +18,11 @@ export default function AcceptInvitePage() {
     const [loading, setLoading] = useState(true);
     const [verifying, setVerifying] = useState(false);
     const [inviteValid, setInviteValid] = useState(false);
+    const [whatsapp, setWhatsapp] = useState<string | null>(null);
+    const [codeSent, setCodeSent] = useState(false);
+    const [sendingCode, setSendingCode] = useState(false);
+    const [verificationCode, setVerificationCode] = useState('');
+    const [phoneVerified, setPhoneVerified] = useState(false);
 
     useEffect(() => {
         async function verifyToken() {
@@ -25,7 +30,7 @@ export default function AcceptInvitePage() {
             try {
                 const { data, error } = await supabase
                     .from('invitations')
-                    .select('email, used_at, expires_at')
+                    .select('email, used_at, expires_at, role, department, whatsapp')
                     .eq('token', token)
                     .maybeSingle();
 
@@ -34,6 +39,7 @@ export default function AcceptInvitePage() {
                 if (new Date(data.expires_at) < new Date()) throw new Error('Invitation expired');
 
                 setEmail(data.email);
+                if (data.whatsapp) setWhatsapp(data.whatsapp);
                 setInviteValid(true);
             } catch (error: any) {
                 toast.error(error.message || 'Invalid or expired invitation');
@@ -45,31 +51,114 @@ export default function AcceptInvitePage() {
         verifyToken();
     }, [token]);
 
+    const handleSendCode = async () => {
+        if (!whatsapp?.trim()) return;
+        setSendingCode(true);
+        try {
+            const result = await requestVerificationCode(whatsapp);
+            if (result.error) {
+                toast.error(result.error);
+                return;
+            }
+            setCodeSent(true);
+            toast.success('Verification code sent to your WhatsApp.');
+        } catch (e: any) {
+            toast.error(e?.message || 'Failed to send code');
+        } finally {
+            setSendingCode(false);
+        }
+    };
+
+    const handleVerifyCode = async () => {
+        if (!whatsapp?.trim() || !verificationCode.trim()) {
+            toast.error('Enter the code you received.');
+            return;
+        }
+        setVerifying(true);
+        try {
+            const result = await verifyPhoneCode(whatsapp, verificationCode.trim());
+            if (result.valid) {
+                setPhoneVerified(true);
+                toast.success('Phone verified.');
+            } else {
+                toast.error('Invalid or expired code. Request a new one if needed.');
+            }
+        } catch (e: any) {
+            toast.error(e?.message || 'Verification failed');
+        } finally {
+            setVerifying(false);
+        }
+    };
+
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
         setVerifying(true);
 
         try {
-            // 1. Sign up the user
-            const { data, error } = await supabase.auth.signUp({
+            // 1. Fetch invitation details to get role, department, etc.
+            const { data: inviteData, error: inviteError } = await supabase
+                .from('invitations')
+                .select('*')
+                .eq('token', token!)
+                .single();
+
+            if (inviteError || !inviteData) {
+                throw new Error('Invalid invitation token');
+            }
+
+            if (inviteData.used_at) {
+                throw new Error('This invitation has already been used');
+            }
+
+            // 2. Sign up the user
+            const { data: authData, error: signupError } = await supabase.auth.signUp({
                 email,
                 password,
                 options: {
                     data: {
-                        invitation_token: token // Optional: pass token in metadata for debug
+                        invitation_token: token
                     }
                 }
             });
 
-            if (error) throw error;
+            if (signupError) throw signupError;
 
-            if (data.user) {
-                toast.success('Account created successfully! You can now log in.');
-                navigate('/login');
+            if (!authData.user) {
+                throw new Error('Failed to create user account');
             }
 
+            // 3. Create profile from invitation data
+            const { error: profileError } = await supabase.from('profiles').insert({
+                id: authData.user.id,
+                email: email,
+                name: email.split('@')[0], // Default name from email
+                role: inviteData.role,
+                department: inviteData.department,
+                manager_id: inviteData.manager_id || null
+            });
+
+            if (profileError) {
+                console.error('Profile creation error:', profileError);
+                // Don't throw - profile might be created by trigger
+                // But log it for debugging
+            }
+
+            // 4. Mark invitation as used
+            const { error: updateError } = await supabase
+                .from('invitations')
+                .update({ used_at: new Date().toISOString() })
+                .eq('token', token!);
+
+            if (updateError) {
+                console.warn('Failed to mark invitation as used:', updateError);
+                // Don't fail the signup process if this fails
+            }
+
+            toast.success('Account created successfully! You can now log in.');
+            navigate('/login');
+
         } catch (error: any) {
-            console.error(error);
+            console.error('Signup error:', error);
             toast.error(error.message || 'Failed to create account');
         } finally {
             setVerifying(false);
@@ -100,6 +189,8 @@ export default function AcceptInvitePage() {
         );
     }
 
+    const requirePhoneVerification = !!whatsapp && !phoneVerified;
+
     return (
         <div className="min-h-screen flex items-center justify-center bg-background p-4">
             <Card className="w-full max-w-md">
@@ -110,6 +201,46 @@ export default function AcceptInvitePage() {
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
+                    {whatsapp && (
+                        <div className="space-y-3 mb-6 p-4 rounded-lg border bg-muted/50">
+                            <Label className="text-sm font-medium">Phone verification (WhatsApp)</Label>
+                            <p className="text-xs text-muted-foreground">
+                                A code will be sent to {whatsapp}. You must verify before creating your account.
+                            </p>
+                            {!codeSent ? (
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="w-full"
+                                    onClick={handleSendCode}
+                                    disabled={sendingCode}
+                                >
+                                    {sendingCode ? 'Sending...' : 'Send verification code'}
+                                </Button>
+                            ) : !phoneVerified ? (
+                                <div className="space-y-2">
+                                    <Input
+                                        placeholder="Enter 6-digit code"
+                                        value={verificationCode}
+                                        onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                        maxLength={6}
+                                        className="text-center text-lg tracking-widest"
+                                    />
+                                    <div className="flex gap-2">
+                                        <Button type="button" variant="outline" className="flex-1" onClick={handleSendCode} disabled={sendingCode}>
+                                            Resend code
+                                        </Button>
+                                        <Button type="button" className="flex-1" onClick={handleVerifyCode} disabled={verifying || verificationCode.length !== 6}>
+                                            {verifying ? 'Checking...' : 'Verify'}
+                                        </Button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-green-600 font-medium">Phone verified</p>
+                            )}
+                        </div>
+                    )}
+
                     <form onSubmit={handleSignup} className="space-y-4">
                         <div className="space-y-2">
                             <Label htmlFor="email">Email</Label>
@@ -127,8 +258,12 @@ export default function AcceptInvitePage() {
                                 minLength={6}
                             />
                         </div>
-                        <Button className="w-full" type="submit" disabled={verifying}>
-                            {verifying ? 'Creating Account...' : 'Create Account'}
+                        <Button
+                            className="w-full"
+                            type="submit"
+                            disabled={verifying || requirePhoneVerification}
+                        >
+                            {verifying ? 'Creating Account...' : requirePhoneVerification ? 'Verify phone first' : 'Create Account'}
                         </Button>
                         <p className="mt-4 text-center text-xs text-muted-foreground bg-muted p-2 rounded">
                             <strong>Note:</strong> Check your Supabase Dashboard "Emails" tab if you don't receive a confirmation link.
