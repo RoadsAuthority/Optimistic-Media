@@ -70,12 +70,41 @@ export default function EmployeesPage() {
   const [generatedLink, setGeneratedLink] = useState('');
   const [copied, setCopied] = useState(false);
 
-  const sendEmailInvite = (link: string) => {
-    const subject = encodeURIComponent('Invitation to join Optimistic Media Group');
-    const body = encodeURIComponent(
-      `Hello,\n\nYou have been invited to join Optimistic Media Group as a ${inviteData.role} in the ${inviteData.department} department.\n\nPlease click the link below to set up your account:\n\n${link}\n\nBest regards,\nThe Team`
-    );
-    window.location.href = `mailto:${inviteData.email}?subject=${subject}&body=${body}`;
+  const sendEmailInvite = async (link: string) => {
+    if (!inviteData.email) return;
+
+    const subject = 'Invitation to join Optimistic Media Group';
+    const text = `Hello,
+
+You have been invited to join Optimistic Media Group as a ${inviteData.role} in the ${inviteData.department} department.
+
+Please click the link below to set up your account:
+
+${link}
+
+Best regards,
+The Team`;
+
+    try {
+      const { sendEmailInvitation } = await import('@/hooks/useData');
+      const result = await sendEmailInvitation(inviteData.email, subject, text);
+
+      if (result.error) {
+        toast.warning('SMTP not configured or failed. Opening your email client instead.');
+        const mailtoSubject = encodeURIComponent(subject);
+        const mailtoBody = encodeURIComponent(text);
+        window.location.href = `mailto:${inviteData.email}?subject=${mailtoSubject}&body=${mailtoBody}`;
+        return;
+      }
+
+      toast.success('Invitation sent via email');
+    } catch (error) {
+      console.error('Failed to send email via SMTP:', error);
+      toast.warning('Could not send via SMTP. Opening your email client instead.');
+      const mailtoSubject = encodeURIComponent(subject);
+      const mailtoBody = encodeURIComponent(text);
+      window.location.href = `mailto:${inviteData.email}?subject=${mailtoSubject}&body=${mailtoBody}`;
+    }
   };
 
   const getWhatsAppMessageBody = (link: string) => {
@@ -208,9 +237,9 @@ export default function EmployeesPage() {
     }
   };
 
-  const handleSendEmail = () => {
+  const handleSendEmail = async () => {
     if (!generatedLink) return;
-    sendEmailInvite(generatedLink);
+    await sendEmailInvite(generatedLink);
   };
 
   const handleSendWhatsApp = () => {

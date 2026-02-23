@@ -60,33 +60,15 @@ export default function LoginPage() {
             }
         } catch (error: any) {
             console.error('Auth Error:', error);
-            toast.error(error.message || `Failed to ${mode}. Check console for details.`);
-        } finally {
-            setLoading(false);
-        }
-    };
+            const msg = String(error?.message || '');
+            const status = error?.status;
 
-    const handleMagicLink = async () => {
-        if (!email) {
-            toast.error('Please enter your email first');
-            return;
-        }
-        setLoading(true);
-        try {
-            const { error } = await supabase.auth.signInWithOtp({
-                email,
-                options: {
-                    emailRedirectTo: window.location.origin,
-                }
-            });
-            if (error) throw error;
-            toast.success('Magic link sent! Check your email.');
-        } catch (error: any) {
-            console.error('Magic Link Error:', error);
-            if (error.message.includes('User not found')) {
-                toast.error('No account found for this email. Please sign up first.');
+            if (status === 429 || msg.toLowerCase().includes('rate limit')) {
+                toast.error(
+                    'Signup rate limit exceeded. Wait a bit and try again, or (for testing) disable "Confirm email" in Supabase Auth to stop sending confirmation emails.'
+                );
             } else {
-                toast.error(error.message || 'Failed to send magic link. Check console.');
+                toast.error(error.message || `Failed to ${mode}. Check console for details.`);
             }
         } finally {
             setLoading(false);
@@ -146,19 +128,6 @@ export default function LoginPage() {
                             </form>
                         </TabsContent>
                     </Tabs>
-
-                    <div className="relative my-4">
-                        <div className="absolute inset-0 flex items-center">
-                            <span className="w-full border-t" />
-                        </div>
-                        <div className="relative flex justify-center text-xs uppercase">
-                            <span className="bg-background px-2 text-muted-foreground">Or</span>
-                        </div>
-                    </div>
-
-                    <Button variant="outline" className="w-full" onClick={handleMagicLink} disabled={loading}>
-                        Send Magic Link
-                    </Button>
 
                 </CardContent>
             </Card>

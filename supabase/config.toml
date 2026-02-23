@@ -6,3 +6,7 @@ verify_jwt = false
 
 [functions.verify-code]
 verify_jwt = false
+
+# Email SMTP sender (requires authenticated user; uses JWT verification by default)
+[functions.send-email]
+verify_jwt=false

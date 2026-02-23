@@ -677,6 +677,31 @@ export const createInvitation = async (email: string, role: string, department: 
     }
 };
 
+/** Send an invitation email via SMTP (Supabase Edge Function). */
+export const sendEmailInvitation = async (
+    to: string,
+    subject: string,
+    text: string,
+    html?: string
+): Promise<{ ok?: boolean; error?: string }> => {
+    const { data, error } = await supabase.functions.invoke('send-email', {
+        body: { to, subject, text, html },
+    });
+
+    if (error) {
+        console.error('sendEmailInvitation error:', error);
+        return { error: error.message };
+    }
+
+    const payload = data as { ok?: boolean; error?: string } | null;
+    if (payload?.error) {
+        console.error('send-email function error:', payload.error);
+        return { error: payload.error };
+    }
+
+    return { ok: true };
+};
+
 // UUID v4 generator that works in both secure (HTTPS) and non-secure (HTTP) contexts
 const generateUUID = (): string => {
     try {
