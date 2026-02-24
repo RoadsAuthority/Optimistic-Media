@@ -127,27 +127,15 @@ export default function AcceptInvitePage() {
                 throw new Error('Failed to create user account');
             }
 
-            // 3. Create profile from invitation data
-            const { error: profileError } = await supabase.from('profiles').insert({
-                id: authData.user.id,
-                email: email,
-                name: email.split('@')[0], // Default name from email
-                role: inviteData.role,
-                department: inviteData.department,
-                manager_id: inviteData.manager_id || null
-            });
+            // The profile is now created automatically by the database trigger 'on_auth_user_created'
+            // which uses the invitation_token passed in the metadata above.
 
-            if (profileError) {
-                console.error('Profile creation error:', profileError);
-                // Don't throw - profile might be created by trigger
-                // But log it for debugging
-            }
-
-            // 4. Mark invitation as used
+            // 3. Mark invitation as used (optional fallback, the trigger also does this)
             const { error: updateError } = await supabase
                 .from('invitations')
                 .update({ used_at: new Date().toISOString() })
                 .eq('token', token!);
+
 
             if (updateError) {
                 console.warn('Failed to mark invitation as used:', updateError);
