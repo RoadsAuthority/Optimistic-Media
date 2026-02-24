@@ -21,18 +21,27 @@ DECLARE
   existing_profile public.profiles%ROWTYPE;
   invite_token text;
   invite_record record;
+  new_email text;
+  new_whatsapp text;
 BEGIN
-  -- 1. Check if a profile already exists for this email (to link manual creators or handle retries)
+  new_email := new.email;
+  new_whatsapp := new.phone; -- Supabase Auth 'phone' field
+
+  -- 1. Check if a profile already exists for this email OR phone
   SELECT * INTO existing_profile
   FROM public.profiles
-  WHERE email = new.email
-  ORDER BY created_at ASC -- If duplicates exist, pick the oldest one
+  WHERE (new_email IS NOT NULL AND email = new_email)
+     OR (new_whatsapp IS NOT NULL AND whatsapp = new_whatsapp)
+  ORDER BY created_at ASC
   LIMIT 1;
 
   IF existing_profile.id IS NOT NULL THEN
     -- Update the old profile to match the new auth ID
     UPDATE public.profiles
-    SET id = new.id
+    SET 
+      id = new.id,
+      email = coalesce(existing_profile.email, new_email),
+      whatsapp = coalesce(existing_profile.whatsapp, new_whatsapp)
     WHERE id = existing_profile.id;
     RETURN new;
   END IF;
@@ -47,6 +56,11 @@ BEGIN
       new_role := invite_record.role;
       new_department := invite_record.department;
       new_manager_id := invite_record.manager_id;
+      
+      -- If the invite had a specific phone, use it if auth didn't provide one
+      IF new_whatsapp IS NULL THEN
+        new_whatsapp := invite_record.whatsapp;
+      END IF;
       
       -- Mark invite as used
       UPDATE public.invitations SET used_at = now() WHERE id = invite_record.id;
@@ -67,14 +81,21 @@ BEGIN
   END IF;
 
   -- 4. Create the profile
-  INSERT INTO public.profiles (id, email, name, role, department, manager_id)
+  INSERT INTO public.profiles (id, email, name, role, department, manager_id, whatsapp)
   VALUES (
     new.id,
-    new.email,
-    coalesce(new.raw_user_meta_data->>'name', split_part(new.email, '@', 1)),
+    new_email,
+    coalesce(
+      new.raw_user_meta_data->>'name', 
+      CASE 
+        WHEN new_email IS NOT NULL THEN split_part(new_email, '@', 1)
+        ELSE 'User ' || substring(new.id::text, 1, 8)
+      END
+    ),
     new_role,
     new_department,
-    new_manager_id
+    new_manager_id,
+    new_whatsapp
   );
 
   -- 5. Initialize leave balances for the new user

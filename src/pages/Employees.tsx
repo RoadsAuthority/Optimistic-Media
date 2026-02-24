@@ -115,14 +115,11 @@ export default function EmployeesPage() {
         return;
       }
 
-      let finalEmail = inviteData.email;
-      if (!finalEmail && inviteMethod === 'WHATSAPP') {
-        const tempId = Math.random().toString(36).substring(7);
-        finalEmail = `wa.${tempId}@invite.optimisticmedia.group`;
-      }
+      let finalEmail = inviteData.email?.trim() || null;
+      let finalWhatsapp = inviteData.whatsapp?.trim() || null;
 
-      if (!finalEmail && inviteMethod === 'EMAIL') {
-        toast.error('Email address is required');
+      if (!finalEmail && !finalWhatsapp) {
+        toast.error('Either Email or WhatsApp number is required');
         return;
       }
 
@@ -131,15 +128,15 @@ export default function EmployeesPage() {
         role: inviteData.role,
         department: inviteData.department,
         managerId: inviteData.managerId,
-        whatsapp: inviteData.whatsapp
+        whatsapp: finalWhatsapp
       });
 
       const invite = await createInvitation(
-        finalEmail,
+        finalEmail || '', // Keeping as empty string for DB if null
         inviteData.role,
         inviteData.department,
         currentUser?.id,
-        inviteData.whatsapp,
+        finalWhatsapp || undefined,
         inviteData.managerId || undefined
       );
 

@@ -112,16 +112,32 @@ export default function AcceptInvitePage() {
                 throw new Error('This invitation has already been used');
             }
 
-            // 2. Sign up the user
-            const { data: authData, error: signupError } = await supabase.auth.signUp({
-                email,
+            // 2. Sign up the user (Email or Phone)
+            let authOptions: any = {
                 password,
                 options: {
                     data: {
                         invitation_token: token
                     }
                 }
-            });
+            };
+
+            const isPhoneSignup = !inviteData.email && inviteData.whatsapp;
+            let result;
+
+            if (isPhoneSignup) {
+                result = await supabase.auth.signUp({
+                    phone: inviteData.whatsapp,
+                    ...authOptions
+                });
+            } else {
+                result = await supabase.auth.signUp({
+                    email: inviteData.email,
+                    ...authOptions
+                });
+            }
+
+            const { data: authData, error: signupError } = result;
 
             if (signupError) throw signupError;
 
@@ -137,6 +153,7 @@ export default function AcceptInvitePage() {
                 .from('invitations')
                 .update({ used_at: new Date().toISOString() })
                 .eq('token', token!);
+
 
 
             if (updateError) {
@@ -187,7 +204,7 @@ export default function AcceptInvitePage() {
                 <CardHeader className="space-y-1">
                     <CardTitle className="text-2xl font-bold">Accept Invitation</CardTitle>
                     <CardDescription>
-                        Set up your account for {email}
+                        Set up your account for {email || whatsapp}
                     </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -243,8 +260,8 @@ export default function AcceptInvitePage() {
 
                     <form onSubmit={handleSignup} className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="email">Email</Label>
-                            <Input id="email" type="email" value={email} disabled />
+                            <Label htmlFor="identifier">{email ? 'Email' : 'WhatsApp (Login ID)'}</Label>
+                            <Input id="identifier" type="text" value={email || whatsapp || ''} disabled />
                         </div>
                         <div className="space-y-2">
                             <Label htmlFor="password">Create Password</Label>
@@ -258,6 +275,7 @@ export default function AcceptInvitePage() {
                                 minLength={6}
                             />
                         </div>
+
                         <Button
                             className="w-full"
                             type="submit"
