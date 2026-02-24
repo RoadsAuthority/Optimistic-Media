@@ -497,16 +497,7 @@ export default function EmployeesPage() {
                             </p>
                           )}
                         </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="invite-email-opt">Email (Optional)</Label>
-                          <Input
-                            id="invite-email-opt"
-                            type="email"
-                            placeholder="colleague@company.com"
-                            value={inviteData.email}
-                            onChange={(e) => setInviteData({ ...inviteData, email: e.target.value })}
-                          />
-                        </div>
+                        {/* Email removed for WhatsApp invites per user request */}
                       </div>
                     )}
 
