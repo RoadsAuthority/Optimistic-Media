@@ -12,4 +12,22 @@ verify_jwt = false
 
 # Email SMTP sender (requires authenticated user; uses JWT verification by default)
 [functions.send-email]
-verify_jwt=false
+verify_jwt = false
+
+[auth.sms]
+enabled = true
+template = "Your code is {{ .Code }}"
+
+[auth.sms.twilio]
+enabled = true
+account_sid = "env:TWILIO_ACCOUNT_SID"
+auth_token = "env:TWILIO_AUTH_TOKEN"
+message_service_sid = "env:TWILIO_MESSAGE_SERVICE_SID"
+
+[auth.email.smtp]
+enabled = true
+host = "smtp.sendgrid.net"
+port = 587
+user = "apikey"
+pass = "env:SENDGRID_API_KEY"
+sender_name = "LeaveTrack Pro"
