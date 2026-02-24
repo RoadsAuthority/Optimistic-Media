@@ -2,7 +2,7 @@
 // Supports: (1) plain message with body (2) verification with Content template (contentSid + contentVariables)
 // Set secrets: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, TWILIO_WHATSAPP_NUMBER
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -36,7 +36,7 @@ type Payload = {
   from?: string;
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }

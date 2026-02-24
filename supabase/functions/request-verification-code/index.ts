@@ -2,8 +2,7 @@
 // Requires: TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_NUMBER (e.g. whatsapp:+14155238886)
 // Optional: TWILIO_VERIFICATION_CONTENT_SID (default HX229f5a04fd0510ce1b071852155d3e75)
 
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from '@supabase/supabase-js';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -33,7 +32,7 @@ function ensureE164(phone: string): string {
   return phone.startsWith('+') ? phone : '+' + digits;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
