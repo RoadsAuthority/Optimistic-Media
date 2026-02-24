@@ -89,27 +89,8 @@ export default function EmployeesPage() {
 
   const sendWhatsAppInvite = (link: string) => {
     if (!link) return;
-
-    const message = getWhatsAppMessageBody(link);
-    const phone = inviteData.whatsapp?.replace(/\D/g, '');
-
-    if (phone) {
-      sendTwilioMessage(inviteData.whatsapp!, message, 'whatsapp')
-        .then((res) => {
-          if (res.error) {
-            toast.warning('Twilio not configured or failed. Opening WhatsApp…');
-            openWhatsAppUrl(link);
-          } else {
-            toast.success('Invitation sent via Twilio WhatsApp');
-          }
-        })
-        .catch(() => {
-          toast.warning('Could not send via Twilio. Opening WhatsApp…');
-          openWhatsAppUrl(link);
-        });
-    } else {
-      openWhatsAppUrl(link);
-    }
+    openWhatsAppUrl(link);
+    toast.info('Opening WhatsApp to send invitation...');
   };
 
   const openWhatsAppUrl = (link: string) => {
@@ -137,7 +118,7 @@ export default function EmployeesPage() {
       let finalEmail = inviteData.email;
       if (!finalEmail && inviteMethod === 'WHATSAPP') {
         const tempId = Math.random().toString(36).substring(7);
-        finalEmail = `wa+${tempId}@invite.optimisticmedia.group`;
+        finalEmail = `wa.${tempId}@invite.optimisticmedia.group`;
       }
 
       if (!finalEmail && inviteMethod === 'EMAIL') {
@@ -154,10 +135,10 @@ export default function EmployeesPage() {
       });
 
       const invite = await createInvitation(
-        finalEmail, 
-        inviteData.role, 
-        inviteData.department, 
-        currentUser?.id, 
+        finalEmail,
+        inviteData.role,
+        inviteData.department,
+        currentUser?.id,
         inviteData.whatsapp,
         inviteData.managerId || undefined
       );

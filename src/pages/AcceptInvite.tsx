@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function AcceptInvitePage() {
@@ -61,7 +63,7 @@ export default function AcceptInvitePage() {
                 return;
             }
             setCodeSent(true);
-            toast.success('Verification code sent to your WhatsApp.');
+            toast.success('Verification code requested. If it does not arrive on WhatsApp, check your database.');
         } catch (e: any) {
             toast.error(e?.message || 'Failed to send code');
         } finally {
@@ -226,6 +228,16 @@ export default function AcceptInvitePage() {
                             ) : (
                                 <p className="text-sm text-green-600 font-medium">Phone verified</p>
                             )}
+
+                            {whatsapp && !phoneVerified && (
+                                <Alert className="mt-2 bg-blue-50 border-blue-200">
+                                    <AlertCircle className="h-4 w-4 text-blue-600" />
+                                    <AlertDescription className="text-blue-700 text-xs">
+                                        Using Twilio Sandbox? Send <strong>join &lt;sandbox-code&gt;</strong> (e.g. <em>join fruit-morning</em>)
+                                        to the Twilio number first.
+                                    </AlertDescription>
+                                </Alert>
+                            )}
                         </div>
                     )}
 
@@ -258,7 +270,7 @@ export default function AcceptInvitePage() {
                         </p>
                     </form>
                 </CardContent>
-            </Card>
-        </div>
+            </Card >
+        </div >
     );
 }

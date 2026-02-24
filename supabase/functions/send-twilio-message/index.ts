@@ -10,10 +10,18 @@ const corsHeaders = {
 };
 
 function ensureE164(phone: string): string {
+  // Remove all non-digits
   const digits = phone.replace(/\D/g, '');
-  if (digits.startsWith('0')) return '+' + digits.slice(1);
-  if (!digits.startsWith('1') && digits.length <= 10) return '+1' + digits;
-  return digits.startsWith('+') ? phone : '+' + digits;
+
+  // If it already looks like a full E.164 (starts with a known large country code or just long enough)
+  // we just ensure the + is there.
+  if (phone.startsWith('+')) return '+' + digits;
+
+  if (digits.length >= 11 && (digits.startsWith('264') || digits.startsWith('27'))) {
+    return '+' + digits;
+  }
+
+  return phone.startsWith('+') ? phone : '+' + digits;
 }
 
 type Payload = {
@@ -106,6 +114,8 @@ serve(async (req) => {
       form.set('Body', body!);
     }
 
+    console.log(`Sending Twilio message from ${from} to ${toParam} (WhatsApp: ${isWhatsApp}, template: ${useContentTemplate})`);
+
     const res = await fetch(url, {
       method: 'POST',
       headers: {
@@ -116,10 +126,12 @@ serve(async (req) => {
     });
 
     const data = await res.json().catch(() => ({}));
+    console.log('Twilio response:', { status: res.status, ok: res.ok, data });
 
     if (!res.ok) {
+      console.error('Twilio error:', data);
       return new Response(
-        JSON.stringify({ error: data.message || 'Twilio request failed', code: data.code }),
+        JSON.stringify({ error: data.message || 'Twilio request failed', code: data.code, moreInfo: data.more_info }),
         { status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

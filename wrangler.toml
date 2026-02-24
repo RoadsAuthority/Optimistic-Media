@@ -1,0 +1,7 @@
+name = "leavetrack-pro"
+pages_build_output_dir = "dist"
+
+[vars]
+# Add any environment variables here if needed
+# VITE_SUPABASE_URL = "your-supabase-url"
+# VITE_SUPABASE_ANON_KEY = "your-supabase-anon-key"

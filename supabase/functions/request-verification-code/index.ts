@@ -11,10 +11,26 @@ const corsHeaders = {
 };
 
 function ensureE164(phone: string): string {
+  // Remove all non-digits
   const digits = phone.replace(/\D/g, '');
-  if (digits.startsWith('0')) return '+' + digits.slice(1);
-  if (!digits.startsWith('1') && digits.length <= 10) return '+1' + digits;
-  return digits.startsWith('+') ? phone : '+' + digits;
+
+  // If it already looks like a full E.164 (starts with a known large country code or just long enough)
+  // we just ensure the + is there.
+  if (phone.startsWith('+')) return '+' + digits;
+
+  // Handle local 0-prefix: This is tricky without knowing the country.
+  // Many users in Namibia (+264) enter 081... 
+  // If no prefix and it starts with 0, we can't safely assume +264 unless we hardcode it.
+  // But we can at least NOT turn 081 into +81 (Japan) if we are not sure.
+
+  // Better approach: if it doesn't start with +, and it's 9-10 digits, it's likely local.
+  // If it's longer, it's likely international without the +.
+
+  if (digits.length >= 11 && (digits.startsWith('264') || digits.startsWith('27'))) {
+    return '+' + digits;
+  }
+
+  return phone.startsWith('+') ? phone : '+' + digits;
 }
 
 serve(async (req) => {
@@ -70,12 +86,9 @@ serve(async (req) => {
     const contentVariables = JSON.stringify({ '1': code });
 
     const url = `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`;
-    const form = new URLSearchParams({
-      To: toParam,
-      From: from,
-      ContentSid: contentSid,
-      ContentVariables: contentVariables,
-    });
+
+    // Attempt 1: Using Content Template (Standard for WhatsApp)
+    console.log(`Twilio Attempt 1 (Template): From ${from} To ${toParam} Sid ${contentSid}`);
 
     const res = await fetch(url, {
       method: 'POST',
@@ -83,16 +96,47 @@ serve(async (req) => {
         Authorization: 'Basic ' + btoa(`${accountSid}:${authToken}`),
         'Content-Type': 'application/x-www-form-urlencoded',
       },
-      body: form.toString(),
+      body: new URLSearchParams({
+        To: toParam,
+        From: from,
+        ContentSid: contentSid,
+        ContentVariables: contentVariables,
+      }).toString(),
     });
 
     const data = await res.json().catch(() => ({}));
+    console.log('Twilio Attempt 1 Response:', { status: res.status, ok: res.ok, data });
 
     if (!res.ok) {
-      return new Response(
-        JSON.stringify({ error: data.message || 'Twilio request failed', code: data.code }),
-        { status: res.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      // Attempt 2: Fallback to plain Body (if session exists or sandbox rules allow)
+      console.log(`Twilio Attempt 1 failed. Trying Attempt 2 (Plain Body)...`);
+      const res2 = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Basic ' + btoa(`${accountSid}:${authToken}`),
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          To: toParam,
+          From: from,
+          Body: `Your verification code is: ${code}`,
+        }).toString(),
+      });
+
+      const data2 = await res2.json().catch(() => ({}));
+      console.log('Twilio Attempt 2 Response:', { status: res2.status, ok: res2.ok, data: data2 });
+
+      if (!res2.ok) {
+        return new Response(
+          JSON.stringify({
+            error: data2.message || data.message || 'Twilio request failed',
+            code: data2.code || data.code,
+            attempt1: data.message,
+            attempt2: data2.message
+          }),
+          { status: res2.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     return new Response(
