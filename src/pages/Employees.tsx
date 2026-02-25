@@ -88,7 +88,12 @@ export default function EmployeesPage() {
   };
 
   const sendWhatsAppInvite = async (link: string) => {
-    if (!link || !inviteData.whatsapp) return;
+    if (!link || !inviteData.whatsapp?.trim()) {
+      toast.error('Missing invitation link or WhatsApp number.');
+      return;
+    }
+
+    console.log('Sending WhatsApp invite to:', inviteData.whatsapp, 'with link:', link);
 
     // Always open WhatsApp chat immediately from the user click
     openWhatsAppUrl(link);
