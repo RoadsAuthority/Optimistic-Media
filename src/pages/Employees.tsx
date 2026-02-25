@@ -90,7 +90,10 @@ export default function EmployeesPage() {
   const sendWhatsAppInvite = async (link: string) => {
     if (!link || !inviteData.whatsapp) return;
 
-    setLoading(true);
+    // Always open WhatsApp chat immediately from the user click
+    openWhatsAppUrl(link);
+
+    // Then, in the background, try to send via Twilio as well
     try {
       const result = await sendTwilioMessage(
         inviteData.whatsapp,
@@ -100,16 +103,14 @@ export default function EmployeesPage() {
 
       if (result.error) {
         console.error('Twilio error:', result.error);
-        toast.error('Could not send automatic WhatsApp. Opening manual Chat instead.');
-        openWhatsAppUrl(link);
+        // Chat is already open, so just show a soft warning
+        toast.warning('Automatic WhatsApp send failed. You can send the opened chat manually.');
       } else {
-        toast.success('Invitation sent via WhatsApp (Twilio)!');
+        toast.success('Invitation also sent via WhatsApp (Twilio).');
       }
     } catch (err) {
       console.error('Failed to send Twilio message:', err);
-      openWhatsAppUrl(link);
-    } finally {
-      setLoading(false);
+      toast.warning('Automatic WhatsApp send failed. Use the opened chat to send the invite.');
     }
   };
 
