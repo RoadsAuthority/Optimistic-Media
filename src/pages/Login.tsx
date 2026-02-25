@@ -1,5 +1,4 @@
-
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -11,6 +10,7 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { requestVerificationCode, verifyPhoneCode } from '@/hooks/useData';
 import { PasswordStrengthIndicator } from '@/components/ui/password-strength-indicator';
+import { cn } from '@/lib/utils';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
@@ -23,7 +23,26 @@ export default function LoginPage() {
     const [verificationCode, setVerificationCode] = useState('');
     const [codeSent, setCodeSent] = useState(false);
     const [verifying, setVerifying] = useState(false);
+    const [adminCount, setAdminCount] = useState<number | null>(null);
     const navigate = useNavigate();
+
+    useEffect(() => {
+        const fetchAdminCount = async () => {
+            try {
+                const { count, error } = await supabase
+                    .from('profiles')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('role', 'ADMIN');
+
+                if (error) throw error;
+                setAdminCount(count || 0);
+            } catch (err) {
+                console.error('Error fetching admin count:', err);
+            }
+        };
+
+        fetchAdminCount();
+    }, []);
 
     const handleRequestOTP = async () => {
         if (!phone.trim()) {
@@ -183,9 +202,11 @@ export default function LoginPage() {
                 </CardHeader>
                 <CardContent>
                     <Tabs defaultValue="login" className="w-full">
-                        <TabsList className="grid w-full grid-cols-2 mb-4">
+                        <TabsList className={cn("grid w-full mb-4", (adminCount !== null && adminCount >= 2) ? "grid-cols-1" : "grid-cols-2")}>
                             <TabsTrigger value="login">Login</TabsTrigger>
-                            <TabsTrigger value="signup">Sign Up</TabsTrigger>
+                            {(adminCount === null || adminCount < 2) && (
+                                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+                            )}
                         </TabsList>
 
                         <div className="flex justify-center mb-4 p-1 bg-muted rounded-lg w-fit mx-auto">
@@ -297,32 +318,44 @@ export default function LoginPage() {
                             </div>
                         </TabsContent>
 
-                        <TabsContent value="signup">
-                            <form onSubmit={(e) => handleAuth('signup', e)} className="space-y-4">
-                                {loginMethod === 'email' ? (
+                        {(adminCount === null || adminCount < 2) ? (
+                            <TabsContent value="signup">
+                                <form onSubmit={(e) => handleAuth('signup', e)} className="space-y-4">
+                                    {loginMethod === 'email' ? (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="email-signup">Email</Label>
+                                            <Input id="email-signup" type="email" placeholder="m@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="phone-signup">WhatsApp Number (with +prefix)</Label>
+                                            <Input id="phone-signup" type="tel" placeholder="+264..." required value={phone} onChange={(e) => setPhone(e.target.value)} />
+                                        </div>
+                                    )}
                                     <div className="space-y-2">
-                                        <Label htmlFor="email-signup">Email</Label>
-                                        <Input id="email-signup" type="email" placeholder="m@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                                        <Label htmlFor="password-signup">Password</Label>
+                                        <Input id="password-signup" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                                        <PasswordStrengthIndicator
+                                            password={password}
+                                            onValidChange={setIsPasswordValid}
+                                        />
                                     </div>
-                                ) : (
-                                    <div className="space-y-2">
-                                        <Label htmlFor="phone-signup">WhatsApp Number (with +prefix)</Label>
-                                        <Input id="phone-signup" type="tel" placeholder="+264..." required value={phone} onChange={(e) => setPhone(e.target.value)} />
-                                    </div>
-                                )}
-                                <div className="space-y-2">
-                                    <Label htmlFor="password-signup">Password</Label>
-                                    <Input id="password-signup" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-                                    <PasswordStrengthIndicator
-                                        password={password}
-                                        onValidChange={setIsPasswordValid}
-                                    />
+                                    <Button type="submit" className="w-full" disabled={loading || !isPasswordValid}>
+                                        {loading ? 'Processing...' : 'Create Account'}
+                                    </Button>
+                                </form>
+                            </TabsContent>
+                        ) : (
+                            <TabsContent value="signup">
+                                <div className="p-4 rounded-lg border bg-muted/50 text-center space-y-2">
+                                    <p className="text-sm font-medium">Signup Restricted</p>
+                                    <p className="text-xs text-muted-foreground">
+                                        The system has reached its direct registration limit.
+                                        Please contact an administrator to receive an invitation.
+                                    </p>
                                 </div>
-                                <Button type="submit" className="w-full" disabled={loading || !isPasswordValid}>
-                                    {loading ? 'Processing...' : 'Create Account'}
-                                </Button>
-                            </form>
-                        </TabsContent>
+                            </TabsContent>
+                        )}
                     </Tabs>
 
 
