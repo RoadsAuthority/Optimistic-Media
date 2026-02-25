@@ -12,6 +12,7 @@ import {
   Clock,
   BarChart3,
   Shield,
+  X,
 } from 'lucide-react';
 
 import { Link, useLocation } from 'react-router-dom';
@@ -61,8 +62,12 @@ const adminNavItems = [
 ];
 
 
+interface SidebarProps {
+  isOpen: boolean;
+  onClose: () => void;
+}
 
-export function Sidebar() {
+export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const { currentUser, logout } = useAuth();
   const location = useLocation();
 
@@ -87,63 +92,86 @@ export function Sidebar() {
   const navItems = getNavItems();
 
   return (
-    <aside className="flex h-screen w-64 flex-col bg-sidebar text-sidebar-foreground">
-      {/* Logo */}
-      <div className="flex h-16 items-center gap-3 border-b border-sidebar-border px-6">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg overflow-hidden border border-sidebar-border bg-white p-1">
-          <img src="/logo.jpeg" alt="Optimistic Media Group" className="h-full w-full object-contain" />
-        </div>
-        <div className="flex flex-col">
-          <span className="text-sm font-bold leading-none tracking-tight">Optimistic</span>
-          <span className="text-[10px] font-medium text-sidebar-foreground/50">MEDIA GROUP</span>
-        </div>
-      </div>
+    <>
+      {/* Mobile Overlay */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 z-40 bg-black/50 md:hidden animate-in fade-in duration-200"
+          onClick={onClose}
+        />
+      )}
 
-      {/* Navigation */}
-      <nav className="flex-1 space-y-1 p-4">
-        {navItems.map((item) => {
-          const isActive = location.pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              to={item.href}
-              className={cn(
-                'nav-item',
-                isActive ? 'nav-item-active' : 'nav-item-inactive'
-              )}
-            >
-              <item.icon className="h-5 w-5" />
-              {item.label}
-            </Link>
-          );
-        })}
-
-      </nav>
-
-      {/* User Profile */}
-      <div className="border-t border-sidebar-border p-4">
-
-        <div className="flex items-center gap-3">
-          <Avatar className="h-10 w-10">
-            <AvatarImage src={currentUser.avatar} alt={currentUser.name} />
-            <AvatarFallback className="bg-sidebar-accent text-sidebar-foreground">
-              {currentUser.name.split(' ').map(n => n[0]).join('')}
-            </AvatarFallback>
-          </Avatar>
-          <div className="flex-1 overflow-hidden">
-            <p className="truncate text-sm font-medium">{currentUser.name}</p>
-            <p className="truncate text-xs text-sidebar-foreground/70">{currentUser.role}</p>
+      <aside className={cn(
+        "fixed inset-y-0 left-0 z-50 flex w-64 flex-col bg-sidebar text-sidebar-foreground transition-transform duration-300 md:static md:translate-x-0",
+        isOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        {/* Logo & Close Button */}
+        <div className="flex h-16 items-center justify-between border-b border-sidebar-border px-6">
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg overflow-hidden border border-sidebar-border bg-white p-1">
+              <img src="/logo.jpeg" alt="Optimistic Media Group" className="h-full w-full object-contain" />
+            </div>
+            <div className="flex flex-col">
+              <span className="text-sm font-bold leading-none tracking-tight">Optimistic</span>
+              <span className="text-[10px] font-medium text-sidebar-foreground/50 lowercase">MEDIA GROUP</span>
+            </div>
           </div>
           <Button
             variant="ghost"
             size="icon"
-            className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-            onClick={logout}
+            className="md:hidden text-sidebar-foreground/70 hover:bg-sidebar-accent"
+            onClick={onClose}
           >
-            <LogOut className="h-4 w-4" />
+            <X className="h-5 w-5" />
           </Button>
         </div>
-      </div>
-    </aside>
+
+        {/* Navigation */}
+        <nav className="flex-1 space-y-1 p-4">
+          {navItems.map((item) => {
+            const isActive = location.pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                to={item.href}
+                className={cn(
+                  'nav-item',
+                  isActive ? 'nav-item-active' : 'nav-item-inactive'
+                )}
+              >
+                <item.icon className="h-5 w-5" />
+                {item.label}
+              </Link>
+            );
+          })}
+
+        </nav>
+
+        {/* User Profile */}
+        <div className="border-t border-sidebar-border p-4">
+
+          <div className="flex items-center gap-3">
+            <Avatar className="h-10 w-10">
+              <AvatarImage src={currentUser.avatar} alt={currentUser.name} />
+              <AvatarFallback className="bg-sidebar-accent text-sidebar-foreground">
+                {currentUser.name.split(' ').map(n => n[0]).join('')}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 overflow-hidden">
+              <p className="truncate text-sm font-medium">{currentUser.name}</p>
+              <p className="truncate text-xs text-sidebar-foreground/70">{currentUser.role}</p>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
+              onClick={logout}
+            >
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+      </aside>
+    </>
   );
 }

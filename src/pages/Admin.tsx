@@ -89,64 +89,66 @@ export default function AdminPage() {
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
-                        <Table>
-                            <TableHeader>
-                                <TableRow>
-                                    <TableHead>Name</TableHead>
-                                    <TableHead>Email</TableHead>
-                                    <TableHead>Role</TableHead>
-                                    <TableHead>Manager</TableHead>
-                                    <TableHead>Department</TableHead>
-                                </TableRow>
-                            </TableHeader>
-                            <TableBody>
-                                {users.map((user) => (
-                                    <TableRow key={user.id}>
-                                        <TableCell className="font-medium">{user.name}</TableCell>
-                                        <TableCell>{user.email}</TableCell>
-                                        <TableCell>
-                                            <Select
-                                                defaultValue={user.role}
-                                                onValueChange={(val) => updateUserRole(user.id, val as UserRole)}
-                                                disabled={updating === user.id}
-                                            >
-                                                <SelectTrigger className="w-[130px]">
-                                                    <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="EMPLOYEE">Employee</SelectItem>
-                                                    <SelectItem value="MANAGER">Manager</SelectItem>
-                                                    <SelectItem value="HR">HR</SelectItem>
-                                                    <SelectItem value="ADMIN">Admin</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                        </TableCell>
-                                        <TableCell>
-                                            <Select
-                                                defaultValue={user.managerId || 'none'}
-                                                onValueChange={(val) => updateUserManager(user.id, val)}
-                                                disabled={updating === user.id}
-                                            >
-                                                <SelectTrigger className="w-[180px]">
-                                                    <SelectValue placeholder="Select Manager" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    <SelectItem value="none">No Manager</SelectItem>
-                                                    {managers
-                                                        .filter(m => m.id !== user.id) // Can't be own manager
-                                                        .map(manager => (
-                                                            <SelectItem key={manager.id} value={manager.id}>
-                                                                {manager.name}
-                                                            </SelectItem>
-                                                        ))}
-                                                </SelectContent>
-                                            </Select>
-                                        </TableCell>
-                                        <TableCell>{user.department || '-'}</TableCell>
+                        <div className="overflow-x-auto">
+                            <Table>
+                                <TableHeader>
+                                    <TableRow>
+                                        <TableHead>Name</TableHead>
+                                        <TableHead>Email</TableHead>
+                                        <TableHead>Role</TableHead>
+                                        <TableHead>Manager</TableHead>
+                                        <TableHead>Department</TableHead>
                                     </TableRow>
-                                ))}
-                            </TableBody>
-                        </Table>
+                                </TableHeader>
+                                <TableBody>
+                                    {users.map((user) => (
+                                        <TableRow key={user.id}>
+                                            <TableCell className="font-medium whitespace-nowrap">{user.name}</TableCell>
+                                            <TableCell className="whitespace-nowrap">{user.email}</TableCell>
+                                            <TableCell>
+                                                <Select
+                                                    defaultValue={user.role}
+                                                    onValueChange={(val) => updateUserRole(user.id, val as UserRole)}
+                                                    disabled={updating === user.id}
+                                                >
+                                                    <SelectTrigger className="w-[130px]">
+                                                        <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="EMPLOYEE">Employee</SelectItem>
+                                                        <SelectItem value="MANAGER">Manager</SelectItem>
+                                                        <SelectItem value="HR">HR</SelectItem>
+                                                        <SelectItem value="ADMIN">Admin</SelectItem>
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Select
+                                                    defaultValue={user.managerId || 'none'}
+                                                    onValueChange={(val) => updateUserManager(user.id, val)}
+                                                    disabled={updating === user.id}
+                                                >
+                                                    <SelectTrigger className="w-[180px]">
+                                                        <SelectValue placeholder="Select Manager" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        <SelectItem value="none">No Manager</SelectItem>
+                                                        {managers
+                                                            .filter(m => m.id !== user.id) // Can't be own manager
+                                                            .map(manager => (
+                                                                <SelectItem key={manager.id} value={manager.id}>
+                                                                    {manager.name}
+                                                                </SelectItem>
+                                                            ))}
+                                                    </SelectContent>
+                                                </Select>
+                                            </TableCell>
+                                            <TableCell className="whitespace-nowrap">{user.department || '-'}</TableCell>
+                                        </TableRow>
+                                    ))}
+                                </TableBody>
+                            </Table>
+                        </div>
                     </CardContent>
                 </Card>
 

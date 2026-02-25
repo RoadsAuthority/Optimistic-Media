@@ -10,11 +10,13 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { requestVerificationCode, verifyPhoneCode } from '@/hooks/useData';
+import { PasswordStrengthIndicator } from '@/components/ui/password-strength-indicator';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
     const [phone, setPhone] = useState('');
     const [password, setPassword] = useState('');
+    const [isPasswordValid, setIsPasswordValid] = useState(false);
     const [loading, setLoading] = useState(false);
     const [loginMethod, setLoginMethod] = useState<'email' | 'phone'>('email');
     const [authMode, setAuthMode] = useState<'password' | 'otp'>('password');
@@ -311,8 +313,12 @@ export default function LoginPage() {
                                 <div className="space-y-2">
                                     <Label htmlFor="password-signup">Password</Label>
                                     <Input id="password-signup" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                                    <PasswordStrengthIndicator
+                                        password={password}
+                                        onValidChange={setIsPasswordValid}
+                                    />
                                 </div>
-                                <Button type="submit" className="w-full" disabled={loading}>
+                                <Button type="submit" className="w-full" disabled={loading || !isPasswordValid}>
                                     {loading ? 'Processing...' : 'Create Account'}
                                 </Button>
                             </form>

@@ -66,70 +66,72 @@ export function RecentRequestsTable({ requests, showUser = false, canCancel = fa
       <div className="border-b px-6 py-4">
         <h3 className="font-semibold text-foreground">Recent Leave Requests</h3>
       </div>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            {showUser && <TableHead>Employee</TableHead>}
-            <TableHead>Type</TableHead>
-            <TableHead>Dates</TableHead>
-            <TableHead>Days</TableHead>
-            <TableHead>Status</TableHead>
-            {canCancel && <TableHead className="text-right">Actions</TableHead>}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {requests.length === 0 ? (
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
             <TableRow>
-              <TableCell colSpan={showUser ? 5 : (canCancel ? 5 : 4)} className="text-center text-muted-foreground py-8">
-                No leave requests found
-              </TableCell>
+              {showUser && <TableHead>Employee</TableHead>}
+              <TableHead>Type</TableHead>
+              <TableHead>Dates</TableHead>
+              <TableHead>Days</TableHead>
+              <TableHead>Status</TableHead>
+              {canCancel && <TableHead className="text-right">Actions</TableHead>}
             </TableRow>
-          ) : (
-            requests.map((request) => (
-              <TableRow key={request.id} className="hover:bg-muted/50">
-                {showUser && (
+          </TableHeader>
+          <TableBody>
+            {requests.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={showUser ? 5 : (canCancel ? 5 : 4)} className="text-center text-muted-foreground py-8">
+                  No leave requests found
+                </TableCell>
+              </TableRow>
+            ) : (
+              requests.map((request) => (
+                <TableRow key={request.id} className="hover:bg-muted/50">
+                  {showUser && (
+                    <TableCell>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage src={request.user?.avatar} />
+                          <AvatarFallback className="text-xs">
+                            {request.user?.name.split(' ').map(n => n[0]).join('')}
+                          </AvatarFallback>
+                        </Avatar>
+                        <span className="font-medium whitespace-nowrap">{request.user?.name}</span>
+                      </div>
+                    </TableCell>
+                  )}
                   <TableCell>
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={request.user?.avatar} />
-                        <AvatarFallback className="text-xs">
-                          {request.user?.name.split(' ').map(n => n[0]).join('')}
-                        </AvatarFallback>
-                      </Avatar>
-                      <span className="font-medium">{request.user?.name}</span>
+                    <div className="flex items-center gap-2 whitespace-nowrap">
+                      <div
+                        className="h-2 w-2 rounded-full"
+                        style={{ backgroundColor: request.leaveType?.color }}
+                      />
+                      {request.leaveType?.name}
                     </div>
                   </TableCell>
-                )}
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="h-2 w-2 rounded-full"
-                      style={{ backgroundColor: request.leaveType?.color }}
-                    />
-                    {request.leaveType?.name}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  {format(new Date(request.startDate), 'MMM d')} - {format(new Date(request.endDate), 'MMM d, yyyy')}
-                </TableCell>
-                <TableCell>
-                  {request.daysRequested || calculateDays(request.startDate, request.endDate)}
-                </TableCell>
-                <TableCell>{getStatusBadge(request.status)}</TableCell>
-                {canCancel && (
-                  <TableCell className="text-right">
-                    {(request.status === 'PENDING' || request.status === 'APPROVED') && (
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleCancel(request.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
+                  <TableCell className="whitespace-nowrap">
+                    {format(new Date(request.startDate), 'MMM d')} - {format(new Date(request.endDate), 'MMM d, yyyy')}
                   </TableCell>
-                )}
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
+                  <TableCell>
+                    {request.daysRequested || calculateDays(request.startDate, request.endDate)}
+                  </TableCell>
+                  <TableCell>{getStatusBadge(request.status)}</TableCell>
+                  {canCancel && (
+                    <TableCell className="text-right">
+                      {(request.status === 'PENDING' || request.status === 'APPROVED') && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive" onClick={() => handleCancel(request.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </TableCell>
+                  )}
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </div>
     </div>
   );
 }

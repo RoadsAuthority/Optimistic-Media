@@ -1,3 +1,4 @@
+import { PasswordStrengthIndicator } from '@/components/ui/password-strength-indicator';
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -25,6 +26,7 @@ export default function AcceptInvitePage() {
     const [sendingCode, setSendingCode] = useState(false);
     const [verificationCode, setVerificationCode] = useState('');
     const [phoneVerified, setPhoneVerified] = useState(false);
+    const [isPasswordValid, setIsPasswordValid] = useState(false);
 
     useEffect(() => {
         async function verifyToken() {
@@ -276,20 +278,23 @@ export default function AcceptInvitePage() {
                             <Input
                                 id="password"
                                 type="password"
-                                placeholder="Minimum 6 characters"
+                                placeholder="Create a password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
                                 required
-                                minLength={6}
+                            />
+                            <PasswordStrengthIndicator
+                                password={password}
+                                onValidChange={setIsPasswordValid}
                             />
                         </div>
 
                         <Button
                             className="w-full"
                             type="submit"
-                            disabled={verifying || requirePhoneVerification}
+                            disabled={verifying || requirePhoneVerification || !isPasswordValid}
                         >
-                            {verifying ? 'Creating Account...' : requirePhoneVerification ? 'Verify phone first' : 'Create Account'}
+                            {verifying ? 'Creating account...' : requirePhoneVerification ? 'Verify phone first' : 'Create Account'}
                         </Button>
                         <p className="mt-4 text-center text-xs text-muted-foreground bg-muted p-2 rounded">
                             <strong>Note:</strong> Check your Supabase Dashboard "Emails" tab if you don't receive a confirmation link.

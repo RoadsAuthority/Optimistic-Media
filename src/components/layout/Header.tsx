@@ -1,7 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications, markNotificationAsRead, markAllNotificationsAsRead } from '@/hooks/useData';
 import { formatDistanceToNow } from 'date-fns';
-import { Bell, Search } from 'lucide-react';
+import { Bell, Search, Menu } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -18,21 +18,32 @@ import { cn } from '@/lib/utils';
 interface HeaderProps {
   title: string;
   subtitle?: string;
+  onMenuClick: () => void;
 }
 
-export function Header({ title, subtitle }: HeaderProps) {
+export function Header({ title, subtitle, onMenuClick }: HeaderProps) {
   const { currentUser } = useAuth();
   const notifications = useNotifications(currentUser?.id);
 
   if (!currentUser) return null;
 
   return (
-    <header className="flex h-16 items-center justify-between border-b bg-card px-6">
-      <div>
-        <h1 className="text-xl font-semibold text-foreground">{title}</h1>
-        {subtitle && (
-          <p className="text-sm text-muted-foreground">{subtitle}</p>
-        )}
+    <header className="flex h-16 items-center justify-between border-b bg-card px-4 md:px-6 shrink-0">
+      <div className="flex items-center gap-4 min-w-0">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="md:hidden shrink-0"
+          onClick={onMenuClick}
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+        <div className="min-w-0">
+          <h1 className="text-lg md:text-xl font-semibold text-foreground truncate">{title}</h1>
+          {subtitle && (
+            <p className="text-xs md:text-sm text-muted-foreground truncate">{subtitle}</p>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-4">
@@ -77,25 +88,26 @@ export function Header({ title, subtitle }: HeaderProps) {
                   No notifications yet
                 </div>
               ) : (
-                notifications.map((notification) => (
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                notifications.map((notification: any) => (
                   <DropdownMenuItem
-                    key={notification.id}
+                    key={notification.id as string}
                     className={cn(
                       "flex flex-col items-start gap-1 py-3 px-4 cursor-pointer focus:bg-muted",
                       !notification.isRead && "bg-primary/5"
                     )}
-                    onClick={() => markNotificationAsRead(notification.id, currentUser.id)}
+                    onClick={() => markNotificationAsRead(notification.id as string, currentUser.id)}
                   >
                     <div className="flex w-full items-center justify-between gap-2">
                       <span className={cn("font-medium text-sm", !notification.isRead && "text-primary")}>
-                        {notification.title}
+                        {notification.title as string}
                       </span>
                       <span className="text-[10px] text-muted-foreground whitespace-nowrap">
-                        {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+                        {formatDistanceToNow(new Date(notification.createdAt as string), { addSuffix: true })}
                       </span>
                     </div>
                     <span className="text-xs text-muted-foreground leading-snug">
-                      {notification.message}
+                      {notification.message as string}
                     </span>
                   </DropdownMenuItem>
                 ))
