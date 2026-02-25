@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { validatePassword } from '@/lib/auth-utils';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { requestVerificationCode, verifyPhoneCode } from '@/hooks/useData';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
@@ -24,8 +25,16 @@ export default function LoginPage() {
     const [verificationCode, setVerificationCode] = useState('');
     const [codeSent, setCodeSent] = useState(false);
     const [verifying, setVerifying] = useState(false);
+    const [showForgot, setShowForgot] = useState(false);
     const [adminCount, setAdminCount] = useState<number | null>(null);
     const navigate = useNavigate();
+    const { isRecovering } = useAuth();
+
+    useEffect(() => {
+        if (isRecovering) {
+            navigate('/reset-password');
+        }
+    }, [isRecovering, navigate]);
 
     useEffect(() => {
         const fetchAdminCount = async () => {
@@ -110,6 +119,35 @@ export default function LoginPage() {
         } catch (error) {
             const err = error as Error;
             toast.error(err.message || 'Login failed');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleForgotPassword = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!email.trim()) {
+            toast.error('Please enter your email address.');
+            return;
+        }
+        setLoading(true);
+        try {
+            const { data, error } = await supabase.functions.invoke('auth-recovery', {
+                body: {
+                    email: email,
+                    redirectTo: `${window.location.origin}/reset-password`
+                }
+            });
+
+            if (error) throw error;
+            if (data?.error) throw new Error(data.error);
+
+            toast.success('Password reset link sent to your email!');
+            setShowForgot(false);
+        } catch (error) {
+            const err = error as Error;
+            console.error('Reset link error:', err);
+            toast.error(err.message || 'Failed to send reset link via server');
         } finally {
             setLoading(false);
         }
@@ -237,90 +275,131 @@ export default function LoginPage() {
 
                         <TabsContent value="login">
                             <div className="space-y-4">
-                                {loginMethod === 'phone' && (
-                                    <div className="flex justify-center mb-2 p-1 bg-muted/50 rounded-lg w-fit mx-auto border">
-                                        <Button
-                                            variant={authMode === 'password' ? 'secondary' : 'ghost'}
-                                            size="sm"
-                                            className="px-3 py-1 text-[10px] h-7"
-                                            onClick={() => setAuthMode('password')}
-                                        >
-                                            Password
-                                        </Button>
-                                        <Button
-                                            variant={authMode === 'otp' ? 'secondary' : 'ghost'}
-                                            size="sm"
-                                            className="px-3 py-1 text-[10px] h-7"
-                                            onClick={() => setAuthMode('otp')}
-                                        >
-                                            WhatsApp Code
-                                        </Button>
-                                    </div>
-                                )}
-
-                                {authMode === 'otp' && loginMethod === 'phone' ? (
-                                    <form onSubmit={handleOTPLogin} className="space-y-4">
+                                {showForgot ? (
+                                    <form onSubmit={handleForgotPassword} className="space-y-4 animate-in fade-in slide-in-from-top-1 duration-200">
                                         <div className="space-y-2">
-                                            <Label htmlFor="phone-otp">WhatsApp Number</Label>
+                                            <Label htmlFor="forgot-email">Recovery Email</Label>
                                             <Input
-                                                id="phone-otp"
-                                                type="tel"
-                                                placeholder="+264..."
+                                                id="forgot-email"
+                                                type="email"
+                                                placeholder="m@example.com"
                                                 required
-                                                value={phone}
-                                                onChange={(e) => setPhone(e.target.value)}
-                                                disabled={codeSent}
+                                                value={email}
+                                                onChange={(e) => setEmail(e.target.value)}
                                             />
                                         </div>
-
-                                        {!codeSent ? (
-                                            <Button type="button" className="w-full" onClick={handleRequestOTP} disabled={loading}>
-                                                {loading ? 'Sending...' : 'Send Verification Code'}
-                                            </Button>
-                                        ) : (
-                                            <>
-                                                <div className="space-y-2">
-                                                    <Label htmlFor="otp-code">Verification Code</Label>
-                                                    <Input
-                                                        id="otp-code"
-                                                        placeholder="6-digit code"
-                                                        required
-                                                        value={verificationCode}
-                                                        onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                                                        maxLength={6}
-                                                        className="text-center text-lg tracking-widest"
-                                                    />
-                                                </div>
-                                                <Button type="submit" className="w-full" disabled={loading || verificationCode.length !== 6}>
-                                                    {loading ? 'Verifying...' : 'Verify & Login'}
-                                                </Button>
-                                                <Button type="button" variant="link" className="w-full text-xs" onClick={() => setCodeSent(false)}>
-                                                    Use a different number
-                                                </Button>
-                                            </>
-                                        )}
-                                    </form>
-                                ) : (
-                                    <form onSubmit={(e) => handleAuth('login', e)} className="space-y-4">
-                                        {loginMethod === 'email' ? (
-                                            <div className="space-y-2">
-                                                <Label htmlFor="email-login">Email</Label>
-                                                <Input id="email-login" type="email" placeholder="m@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
-                                            </div>
-                                        ) : (
-                                            <div className="space-y-2">
-                                                <Label htmlFor="phone-login">WhatsApp Number (with +prefix)</Label>
-                                                <Input id="phone-login" type="tel" placeholder="+264..." required value={phone} onChange={(e) => setPhone(e.target.value)} />
-                                            </div>
-                                        )}
-                                        <div className="space-y-2">
-                                            <Label htmlFor="password-login">Password</Label>
-                                            <Input id="password-login" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
-                                        </div>
                                         <Button type="submit" className="w-full" disabled={loading}>
-                                            {loading ? 'Processing...' : 'Sign In'}
+                                            {loading ? 'Sending...' : 'Send Reset Link'}
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            variant="link"
+                                            className="w-full text-xs"
+                                            onClick={() => setShowForgot(false)}
+                                        >
+                                            Back to Login
                                         </Button>
                                     </form>
+                                ) : (
+                                    <>
+                                        {loginMethod === 'phone' && (
+                                            <div className="flex justify-center mb-2 p-1 bg-muted/50 rounded-lg w-fit mx-auto border">
+                                                <Button
+                                                    variant={authMode === 'password' ? 'secondary' : 'ghost'}
+                                                    size="sm"
+                                                    className="px-3 py-1 text-[10px] h-7"
+                                                    onClick={() => setAuthMode('password')}
+                                                >
+                                                    Password
+                                                </Button>
+                                                <Button
+                                                    variant={authMode === 'otp' ? 'secondary' : 'ghost'}
+                                                    size="sm"
+                                                    className="px-3 py-1 text-[10px] h-7"
+                                                    onClick={() => setAuthMode('otp')}
+                                                >
+                                                    WhatsApp Code
+                                                </Button>
+                                            </div>
+                                        )}
+
+                                        {authMode === 'otp' && loginMethod === 'phone' ? (
+                                            <form onSubmit={handleOTPLogin} className="space-y-4">
+                                                <div className="space-y-2">
+                                                    <Label htmlFor="phone-otp">WhatsApp Number</Label>
+                                                    <Input
+                                                        id="phone-otp"
+                                                        type="tel"
+                                                        placeholder="+264..."
+                                                        required
+                                                        value={phone}
+                                                        onChange={(e) => setPhone(e.target.value)}
+                                                        disabled={codeSent}
+                                                    />
+                                                </div>
+
+                                                {!codeSent ? (
+                                                    <Button type="button" className="w-full" onClick={handleRequestOTP} disabled={loading}>
+                                                        {loading ? 'Sending...' : 'Send Verification Code'}
+                                                    </Button>
+                                                ) : (
+                                                    <>
+                                                        <div className="space-y-2">
+                                                            <Label htmlFor="otp-code">Verification Code</Label>
+                                                            <Input
+                                                                id="otp-code"
+                                                                placeholder="6-digit code"
+                                                                required
+                                                                value={verificationCode}
+                                                                onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                                                                maxLength={6}
+                                                                className="text-center text-lg tracking-widest"
+                                                            />
+                                                        </div>
+                                                        <Button type="submit" className="w-full" disabled={loading || verificationCode.length !== 6}>
+                                                            {loading ? 'Verifying...' : 'Verify & Login'}
+                                                        </Button>
+                                                        <Button type="button" variant="link" className="w-full text-xs" onClick={() => setCodeSent(false)}>
+                                                            Use a different number
+                                                        </Button>
+                                                    </>
+                                                )}
+                                            </form>
+                                        ) : (
+                                            <form onSubmit={(e) => handleAuth('login', e)} className="space-y-4">
+                                                {loginMethod === 'email' ? (
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="email-login">Email</Label>
+                                                        <Input id="email-login" type="email" placeholder="m@example.com" required value={email} onChange={(e) => setEmail(e.target.value)} />
+                                                    </div>
+                                                ) : (
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor="phone-login">WhatsApp Number (with +prefix)</Label>
+                                                        <Input id="phone-login" type="tel" placeholder="+264..." required value={phone} onChange={(e) => setPhone(e.target.value)} />
+                                                    </div>
+                                                )}
+                                                <div className="space-y-2">
+                                                    <div className="flex items-center justify-between">
+                                                        <Label htmlFor="password-login">Password</Label>
+                                                        {loginMethod === 'email' && (
+                                                            <Button
+                                                                type="button"
+                                                                variant="link"
+                                                                className="h-auto p-0 text-[10px] text-muted-foreground"
+                                                                onClick={() => setShowForgot(true)}
+                                                            >
+                                                                Forgot password?
+                                                            </Button>
+                                                        )}
+                                                    </div>
+                                                    <Input id="password-login" type="password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                                                </div>
+                                                <Button type="submit" className="w-full" disabled={loading}>
+                                                    {loading ? 'Processing...' : 'Sign In'}
+                                                </Button>
+                                            </form>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         </TabsContent>

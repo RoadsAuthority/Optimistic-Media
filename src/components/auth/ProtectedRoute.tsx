@@ -10,10 +10,15 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ allowedRoles }: ProtectedRouteProps) {
-    const { currentUser, isLoading } = useAuth();
+    const { currentUser, isLoading, isRecovering } = useAuth();
 
     if (isLoading) {
         return <div className="flex h-screen items-center justify-center">Loading...</div>;
+    }
+
+    // If recovering, force them to stay on reset-password
+    if (isRecovering) {
+        return <Navigate to="/reset-password" replace />;
     }
 
     if (!currentUser) {

@@ -39,6 +39,7 @@ export default function AuditLogPage() {
       LEAVE_REQUEST_APPROVED: 'bg-approved/10 text-approved',
       LEAVE_REQUEST_REJECTED: 'bg-rejected/10 text-rejected',
       LEAVE_BALANCE_ADJUSTED: 'bg-warning/10 text-warning',
+      PASSWORD_RESET: 'bg-purple-100 text-purple-700',
     };
 
     const labels: Record<string, string> = {
@@ -46,6 +47,7 @@ export default function AuditLogPage() {
       LEAVE_REQUEST_APPROVED: 'Approved',
       LEAVE_REQUEST_REJECTED: 'Rejected',
       LEAVE_BALANCE_ADJUSTED: 'Adjusted',
+      PASSWORD_RESET: 'Password Reset',
     };
 
     return (

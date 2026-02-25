@@ -19,23 +19,45 @@ import Employees from "./pages/Employees";
 import LeaveTypes from "./pages/LeaveTypes";
 import Reports from "./pages/Reports";
 import AcceptInvitePage from "./pages/AcceptInvite";
+import ResetPassword from "./pages/ResetPassword";
 
 import NotFound from "./pages/NotFound";
 import AdminPage from "./pages/Admin";
 import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 
 import { queryClient } from "@/lib/queryClient";
+import { supabase } from "@/lib/supabase";
+import { useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+
+const AuthListener = () => {
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        navigate('/reset-password');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate]);
+
+  return null;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <AuthProvider>
-      <TooltipProvider>
-        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+    <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <AuthProvider>
+        <TooltipProvider>
+          <AuthListener />
           <Toaster />
           <Sonner />
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/accept-invite" element={<AcceptInvitePage />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<Index />} />
@@ -57,9 +79,9 @@ const App = () => (
 
             <Route path="*" element={<NotFound />} />
           </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </AuthProvider>
+        </TooltipProvider>
+      </AuthProvider>
+    </BrowserRouter>
   </QueryClientProvider>
 );
 

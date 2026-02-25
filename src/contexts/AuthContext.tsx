@@ -12,9 +12,9 @@ interface AuthContextType {
   currentUser: User | null;
   login: (email: string) => Promise<boolean>;
   logout: () => Promise<void>;
-
   isLoading: boolean;
-
+  isRecovering: boolean;
+  logEvent: (eventType: string, details?: Record<string, unknown>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -23,6 +23,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRecovering, setIsRecovering] = useState(false);
 
   useEffect(() => {
     async function initSession() {
@@ -45,12 +46,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecovering(true);
+      }
+
       if (!session?.user) {
         setCurrentUser(null);
         setIsLoading(false);
+        setIsRecovering(false);
         return;
       }
+
       if (session.user) {
         setIsLoading(true);
         fetchProfile(session.user.id, session.user.email!);
@@ -114,14 +121,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     await supabase.auth.signOut();
     setCurrentUser(null);
+    setIsRecovering(false);
+  };
+
+  const logEvent = async (eventType: string, details?: Record<string, unknown>) => {
+    if (!currentUser) return;
+    try {
+      await supabase.from('audit_logs').insert({
+        performed_by: currentUser.id,
+        action: eventType,
+        details: details ? JSON.stringify(details) : null,
+      });
+    } catch (error) {
+      console.error('Failed to log event:', error);
+    }
   };
 
 
 
   return (
 
-    <AuthContext.Provider value={{ currentUser, login: async () => true, logout, isLoading }}>
-
+    <AuthContext.Provider value={{ currentUser, login: async () => true, logout, isLoading, isRecovering, logEvent }}>
       {children}
     </AuthContext.Provider>
   );
@@ -137,8 +157,10 @@ export function useAuth() {
     return {
       currentUser: null,
       isLoading: true,
+      isRecovering: false,
       login: async () => false,
       logout: async () => { },
+      logEvent: async () => { },
     } as AuthContextType;
   }
   return context;
