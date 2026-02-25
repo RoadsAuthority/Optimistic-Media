@@ -42,6 +42,7 @@ export interface LeaveRequest {
   startDate: string;
   endDate: string;
   daysRequested: number; // Added field
+  filedBy?: string; // Target of joined field
   reason: string;
   status: LeaveStatus;
   managerComment?: string;

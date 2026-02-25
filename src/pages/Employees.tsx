@@ -87,10 +87,30 @@ export default function EmployeesPage() {
     return `*Invitation from Optimistic Media Group*\n\nHello! You've been invited to join our team as a *${roleName}* in the *${deptName}* department.\n\nPlease click the link below to set up your account and access the portal:\n\n${link}`;
   };
 
-  const sendWhatsAppInvite = (link: string) => {
-    if (!link) return;
-    openWhatsAppUrl(link);
-    toast.info('Opening WhatsApp to send invitation...');
+  const sendWhatsAppInvite = async (link: string) => {
+    if (!link || !inviteData.whatsapp) return;
+
+    setLoading(true);
+    try {
+      const result = await sendTwilioMessage(
+        inviteData.whatsapp,
+        getWhatsAppMessageBody(link),
+        'whatsapp'
+      );
+
+      if (result.error) {
+        console.error('Twilio error:', result.error);
+        toast.error('Could not send automatic WhatsApp. Opening manual Chat instead.');
+        openWhatsAppUrl(link);
+      } else {
+        toast.success('Invitation sent via WhatsApp (Twilio)!');
+      }
+    } catch (err) {
+      console.error('Failed to send Twilio message:', err);
+      openWhatsAppUrl(link);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const openWhatsAppUrl = (link: string) => {
@@ -115,8 +135,8 @@ export default function EmployeesPage() {
         return;
       }
 
-      let finalEmail = inviteData.email?.trim() || null;
-      let finalWhatsapp = inviteData.whatsapp?.trim() || null;
+      const finalEmail = inviteData.email?.trim() || null;
+      const finalWhatsapp = inviteData.whatsapp?.trim() || null;
 
       if (!finalEmail && !finalWhatsapp) {
         toast.error('Either Email or WhatsApp number is required');
@@ -156,9 +176,10 @@ export default function EmployeesPage() {
       }
 
       toast.success('Invitation link generated and ready to send!');
-    } catch (error: any) {
-      console.error('Failed to generate invite:', error);
-      toast.error('Failed to generate invite: ' + (error?.message || 'Unknown error'));
+    } catch (error) {
+      const err = error as Error;
+      console.error('Failed to generate invite:', err);
+      toast.error('Failed to generate invite: ' + (err.message || 'Unknown error'));
     } finally {
       setLoading(false);
     }
@@ -240,9 +261,10 @@ export default function EmployeesPage() {
       toast.success('Employee created successfully');
       setIsManualOpen(false);
       setManualData({ name: '', email: '', role: 'EMPLOYEE', department: '', whatsapp: '' });
-    } catch (error: any) {
-      console.error('handleManualCreate error:', error);
-      toast.error(error?.message || 'Failed to create employee');
+    } catch (error) {
+      const err = error as Error;
+      console.error('handleManualCreate error:', err);
+      toast.error(err.message || 'Failed to create employee');
     } finally {
       setLoading(false);
     }

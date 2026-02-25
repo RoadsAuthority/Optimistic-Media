@@ -42,8 +42,9 @@ export default function AdminPage() {
 
             toast.success('User role updated successfully');
             queryClient.invalidateQueries({ queryKey: ['users'] });
-        } catch (error: any) {
-            toast.error(error.message || 'Failed to update role');
+        } catch (error) {
+            const err = error as Error;
+            toast.error(err.message || 'Failed to update role');
         } finally {
             setUpdating(null);
         }
@@ -61,8 +62,9 @@ export default function AdminPage() {
 
             toast.success('Manager updated successfully');
             queryClient.invalidateQueries({ queryKey: ['users'] });
-        } catch (error: any) {
-            toast.error(error.message || 'Failed to update manager');
+        } catch (error) {
+            const err = error as Error;
+            toast.error(err.message || 'Failed to update manager');
         } finally {
             setUpdating(null);
         }
@@ -191,7 +193,8 @@ export default function AdminPage() {
 
                                             toast.success('All leave balances have been reset for the new year.');
                                             queryClient.invalidateQueries({ queryKey: ['leaveBalances'] });
-                                        } catch (err: any) {
+                                        } catch (error) {
+                                            const err = error as Error;
                                             toast.error('Failed to reset balances: ' + err.message);
                                         } finally {
                                             setUpdating(null);

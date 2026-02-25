@@ -15,7 +15,7 @@ verify_jwt = false
 verify_jwt = false
 
 [auth.sms]
-enabled = true
+enable_signup = true
 template = "Your code is {{ .Code }}"
 
 [auth.sms.twilio]
@@ -30,4 +30,5 @@ host = "smtp.sendgrid.net"
 port = 587
 user = "apikey"
 pass = "env:SENDGRID_API_KEY"
+admin_email = "env:SENDGRID_FROM"
 sender_name = "LeaveTrack Pro"

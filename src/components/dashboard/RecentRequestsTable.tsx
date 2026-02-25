@@ -54,9 +54,10 @@ export function RecentRequestsTable({ requests, showUser = false, canCancel = fa
     try {
       await cancelLeaveRequest(id, currentUser.id);
       toast.success('Leave request cancelled successfully');
-    } catch (error: any) {
-      console.error('Error cancelling leave request:', error);
-      toast.error(error?.message || 'Failed to cancel request');
+    } catch (error) {
+      const err = error as Error;
+      console.error('Error cancelling leave request:', err);
+      toast.error(err.message || 'Failed to cancel request');
     }
   };
 
@@ -112,7 +113,7 @@ export function RecentRequestsTable({ requests, showUser = false, canCancel = fa
                   {format(new Date(request.startDate), 'MMM d')} - {format(new Date(request.endDate), 'MMM d, yyyy')}
                 </TableCell>
                 <TableCell>
-                  {(request as any).daysRequested || calculateDays(request.startDate, request.endDate)}
+                  {request.daysRequested || calculateDays(request.startDate, request.endDate)}
                 </TableCell>
                 <TableCell>{getStatusBadge(request.status)}</TableCell>
                 {canCancel && (

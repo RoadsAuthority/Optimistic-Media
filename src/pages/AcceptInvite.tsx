@@ -43,8 +43,9 @@ export default function AcceptInvitePage() {
                 setEmail(data.email);
                 if (data.whatsapp) setWhatsapp(data.whatsapp);
                 setInviteValid(true);
-            } catch (error: any) {
-                toast.error(error.message || 'Invalid or expired invitation');
+            } catch (error) {
+                const err = error as Error;
+                toast.error(err.message || 'Invalid or expired invitation');
             } finally {
                 setLoading(false);
             }
@@ -64,8 +65,9 @@ export default function AcceptInvitePage() {
             }
             setCodeSent(true);
             toast.success('Verification code requested. If it does not arrive on WhatsApp, check your database.');
-        } catch (e: any) {
-            toast.error(e?.message || 'Failed to send code');
+        } catch (error) {
+            const err = error as Error;
+            toast.error(err.message || 'Failed to send code');
         } finally {
             setSendingCode(false);
         }
@@ -85,8 +87,9 @@ export default function AcceptInvitePage() {
             } else {
                 toast.error('Invalid or expired code. Request a new one if needed.');
             }
-        } catch (e: any) {
-            toast.error(e?.message || 'Verification failed');
+        } catch (error) {
+            const err = error as Error;
+            toast.error(err.message || 'Verification failed');
         } finally {
             setVerifying(false);
         }
@@ -113,7 +116,7 @@ export default function AcceptInvitePage() {
             }
 
             // 2. Sign up the user (Email or Phone)
-            let authOptions: any = {
+            const authOptions: Record<string, unknown> = {
                 password,
                 options: {
                     data: {
@@ -128,12 +131,16 @@ export default function AcceptInvitePage() {
             if (isPhoneSignup) {
                 result = await supabase.auth.signUp({
                     phone: inviteData.whatsapp,
-                    ...authOptions
+                    password: authOptions.password as string,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    options: authOptions.options as any
                 });
             } else {
                 result = await supabase.auth.signUp({
                     email: inviteData.email,
-                    ...authOptions
+                    password: authOptions.password as string,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    options: authOptions.options as any
                 });
             }
 
@@ -164,9 +171,10 @@ export default function AcceptInvitePage() {
             toast.success('Account created successfully! You can now log in.');
             navigate('/login');
 
-        } catch (error: any) {
-            console.error('Signup error:', error);
-            toast.error(error.message || 'Failed to create account');
+        } catch (error) {
+            const err = error as Error;
+            console.error('Signup error:', err);
+            toast.error(err.message || 'Failed to create account');
         } finally {
             setVerifying(false);
         }

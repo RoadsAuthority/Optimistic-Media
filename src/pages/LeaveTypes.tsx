@@ -62,13 +62,14 @@ export default function LeaveTypesPage() {
         await updateLeaveType(editingType.id, formData);
         toast.success('Leave type updated');
       } else {
-        await createLeaveType(formData as any);
+        await createLeaveType(formData as Omit<LeaveType, 'id'>);
         toast.success('Leave type created');
       }
       setIsDialogOpen(false);
-    } catch (error: any) {
+    } catch (error) {
+      const err = error as Error;
       toast.error('Failed to save leave type');
-      console.error(error);
+      console.error(err);
     } finally {
       setLoading(false);
     }

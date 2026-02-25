@@ -90,7 +90,7 @@ export function PendingApprovalsCard({ requests }: PendingApprovalsCardProps) {
   const toggleSelectAll = () => {
     // Only select requests the current user is allowed to action
     const actionable = pendingRequests
-      .filter(r => currentUser?.id !== (r as any).filedBy && currentUser?.id !== r.userId)
+      .filter(r => currentUser?.id !== r.filedBy && currentUser?.id !== r.userId)
       .map(r => r.id);
     setSelectedIds(prev =>
       prev.length === actionable.length ? [] : actionable
@@ -144,7 +144,7 @@ export function PendingApprovalsCard({ requests }: PendingApprovalsCardProps) {
         ) : (
           pendingRequests.map((request) => {
             // Prevent self-approval: check if user filed it OR if it's the user's own request
-            const filedByCurrentUser = currentUser?.id === (request as any).filedBy;
+            const filedByCurrentUser = currentUser?.id === request.filedBy;
             const isOwnRequest = currentUser?.id === request.userId;
             const cannotApprove = filedByCurrentUser || isOwnRequest;
             return (

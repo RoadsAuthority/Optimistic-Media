@@ -4,28 +4,35 @@ import { supabase } from '@/lib/supabase';
 import { User, LeaveRequest, LeaveBalance, AuditLog, LeaveType, UserRole, LeaveStatus, Notification } from '@/types/leave';
 
 // Helper to map profile to User
-const mapProfileToUser = (profile: any): User => ({
-    id: profile.id,
-    name: profile.name,
-    email: profile.email,
+interface SupabaseError extends Error {
+    context?: {
+        status?: number;
+    };
+    status?: number;
+}
+
+const mapProfileToUser = (profile: Record<string, unknown>): User => ({
+    id: profile.id as string,
+    name: profile.name as string,
+    email: profile.email as string,
     role: profile.role as UserRole,
 
-    managerId: profile.manager_id,
-    avatar: profile.avatar_url,
-    department: profile.department,
-    companyId: profile.company_id,
-    whatsapp: profile.whatsapp
+    managerId: profile.manager_id as string,
+    avatar: profile.avatar_url as string,
+    department: profile.department as string,
+    companyId: profile.company_id as string,
+    whatsapp: profile.whatsapp as string
 });
 
 // Helper for safe audit logging (prevents 403 Forbidden from blocking operations)
-const safeLogAudit = async (log: any) => {
+const safeLogAudit = async (log: Record<string, unknown>) => {
     try {
         // Ensure performed_by is either a valid UUID or null
         const isValidUUID = (uuid: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(uuid);
 
         const dbLog = {
             ...log,
-            performed_by: isValidUUID(log.performed_by) ? log.performed_by : null,
+            performed_by: isValidUUID(log.performed_by as string) ? log.performed_by : null,
             timestamp: new Date().toISOString()
         };
 
@@ -70,12 +77,12 @@ export const useLeaveTypes = () => {
         queryFn: async () => {
             const { data, error } = await supabase.from('leave_types').select('*');
             if (error) throw error;
-            return data.map((lt: any) => ({
-                id: lt.id,
-                name: lt.name,
-                color: lt.color,
-                annualAllowance: lt.annual_allowance,
-                requiresAttachment: lt.requires_attachment
+            return data.map((lt: Record<string, unknown>) => ({
+                id: lt.id as string,
+                name: lt.name as string,
+                color: lt.color as string,
+                annualAllowance: lt.annual_allowance as number,
+                requiresAttachment: lt.requires_attachment as boolean
             }));
         }
     }).data;
@@ -101,27 +108,27 @@ export const useLeaveRequests = (userId?: string) => {
             const { data, error } = await query;
             if (error) throw error;
 
-            return data.map((r: any) => ({
-                id: r.id,
-                userId: r.user_id,
-                leaveTypeId: r.leave_type_id,
-                startDate: r.start_date,
-                endDate: r.end_date,
-                daysRequested: r.days_requested,
-                reason: r.reason,
+            return data.map((r: Record<string, unknown>) => ({
+                id: r.id as string,
+                userId: r.user_id as string,
+                leaveTypeId: r.leave_type_id as string,
+                startDate: r.start_date as string,
+                endDate: r.end_date as string,
+                daysRequested: r.days_requested as number,
+                reason: r.reason as string,
                 status: r.status as LeaveStatus,
-                managerComment: r.manager_comment,
-                isEmergency: r.is_emergency,
-                attachmentUrl: r.attachment_url,
-                createdAt: r.created_at,
-                updatedAt: r.updated_at,
-                user: r.profiles ? mapProfileToUser(r.profiles) : undefined,
+                managerComment: r.manager_comment as string,
+                isEmergency: r.is_emergency as boolean,
+                attachmentUrl: r.attachment_url as string,
+                createdAt: r.created_at as string,
+                updatedAt: r.updated_at as string,
+                user: r.profiles ? mapProfileToUser(r.profiles as Record<string, unknown>) : undefined,
                 leaveType: r.leave_types ? {
-                    id: r.leave_types.id,
-                    name: r.leave_types.name,
-                    color: r.leave_types.color,
-                    annualAllowance: r.leave_types.annual_allowance,
-                    requiresAttachment: r.leave_types.requires_attachment
+                    id: (r.leave_types as Record<string, unknown>).id as string,
+                    name: (r.leave_types as Record<string, unknown>).name as string,
+                    color: (r.leave_types as Record<string, unknown>).color as string,
+                    annualAllowance: (r.leave_types as Record<string, unknown>).annual_allowance as number,
+                    requiresAttachment: (r.leave_types as Record<string, unknown>).requires_attachment as boolean
                 } : undefined
             }));
         }
@@ -140,12 +147,12 @@ export const useLeaveBalances = (userId?: string) => {
 
             if (error) throw error;
 
-            return data.map((b: any) => ({
-                userId: b.user_id,
-                leaveTypeId: b.leave_type_id,
-                remainingDays: b.remaining_days,
-                usedDays: b.used_days,
-                totalDays: b.total_days
+            return data.map((b: Record<string, unknown>) => ({
+                userId: b.user_id as string,
+                leaveTypeId: b.leave_type_id as string,
+                remainingDays: b.remaining_days as number,
+                usedDays: b.used_days as number,
+                totalDays: b.total_days as number
             }));
         }
     }).data;
@@ -162,14 +169,14 @@ export const useAuditLogs = () => {
 
             if (error) throw error;
 
-            return data.map((l: any) => ({
-                id: l.id,
-                action: l.action,
-                performedBy: l.performed_by,
-                targetId: l.target_id,
-                details: l.details,
-                timestamp: l.timestamp,
-                performedByUser: l.profiles ? mapProfileToUser(l.profiles) : undefined
+            return data.map((l: Record<string, unknown>) => ({
+                id: l.id as string,
+                action: l.action as string,
+                performedBy: l.performed_by as string,
+                targetId: l.target_id as string,
+                details: l.details as string,
+                timestamp: l.timestamp as string,
+                performedByUser: l.profiles ? mapProfileToUser(l.profiles as Record<string, unknown>) : undefined
             }));
         }
     }).data;
@@ -196,7 +203,7 @@ export const useNotifications = (userId?: string) => {
             }
 
             console.log('Notifications fetched:', data?.length || 0, 'notifications');
-            return data.map((n: any) => ({
+            return data.map((n: Record<string, unknown>) => ({
                 id: n.id,
                 userId: n.user_id,
                 title: n.title,
@@ -205,9 +212,6 @@ export const useNotifications = (userId?: string) => {
                 isRead: n.is_read,
                 createdAt: n.created_at
             }));
-        },
-        onError: (error) => {
-            console.error('useNotifications query error:', error);
         }
     }).data;
 };
@@ -225,27 +229,27 @@ const safeCreateNotification = async (notification: Omit<Notification, 'id' | 'i
             message: notification.message,
             type: notification.type || 'info'
         }).select();
-        
+
         if (error) {
             console.error('Failed to create notification:', error.message, error);
             return false;
         }
-        
+
         console.log('Notification created successfully:', data);
-        
+
         // Invalidate notifications query for the user who received the notification
         // Use refetchType: 'active' to immediately refetch active queries
-        await queryClient.invalidateQueries({ 
+        await queryClient.invalidateQueries({
             queryKey: ['notifications', notification.userId],
-            refetchType: 'active' 
+            refetchType: 'active'
         });
-        
+
         // Also invalidate all notification queries as a fallback
-        queryClient.invalidateQueries({ 
+        queryClient.invalidateQueries({
             queryKey: ['notifications'],
             refetchType: 'active'
         });
-        
+
         return true;
     } catch (err) {
         console.error('Notification creation failed unexpectedly:', err);
@@ -295,7 +299,7 @@ export const createLeaveRequest = async (request: Omit<LeaveRequest, 'id' | 'cre
 
     // 3. Notify relevant users
     const { data: userData } = await supabase.from('profiles').select('manager_id, role').eq('id', request.userId).single();
-    
+
     // If the requester is an admin, notify all other admins
     if (userData?.role === 'ADMIN' || userData?.role === 'HR') {
         const { data: admins } = await supabase
@@ -303,7 +307,7 @@ export const createLeaveRequest = async (request: Omit<LeaveRequest, 'id' | 'cre
             .select('id')
             .in('role', ['ADMIN', 'HR'])
             .neq('id', request.userId);
-        
+
         if (admins && admins.length > 0) {
             for (const admin of admins) {
                 await safeCreateNotification({
@@ -342,12 +346,12 @@ export const updateLeaveRequestStatus = async (id: string, status: LeaveStatus, 
     if (fetchError) throw fetchError;
 
     // Build the update payload — only include optional columns if they are likely to exist
-    const updatePayload: Record<string, any> = { status };
+    const updatePayload: Record<string, unknown> = { status };
     if (managerId) updatePayload.manager_id = managerId;
     if (rejectionReason !== undefined) updatePayload.rejection_reason = rejectionReason ?? null;
     updatePayload.updated_at = new Date().toISOString();
 
-    let { error } = await supabase
+    const { error } = await supabase
         .from('leave_requests')
         .update(updatePayload)
         .eq('id', id);
@@ -474,7 +478,7 @@ export const cancelLeaveRequest = async (id: string, userId: string) => {
     if (request.status === 'PENDING' || request.status === 'APPROVED') {
         // Get user's manager or admins who might need to know
         const { data: userData } = await supabase.from('profiles').select('manager_id, role').eq('id', userId).single();
-        
+
         if (userData?.manager_id) {
             await safeCreateNotification({
                 userId: userData.manager_id,
@@ -520,7 +524,7 @@ export const createLeaveType = async (leaveType: Omit<LeaveType, 'id'>) => {
 };
 
 export const updateLeaveType = async (id: string, leaveType: Partial<LeaveType>) => {
-    const updates: any = {};
+    const updates: Record<string, unknown> = {};
     if (leaveType.name) updates.name = leaveType.name;
     if (leaveType.color) updates.color = leaveType.color;
     if (leaveType.annualAllowance !== undefined) updates.annual_allowance = leaveType.annualAllowance;
@@ -536,7 +540,7 @@ export const updateLeaveType = async (id: string, leaveType: Partial<LeaveType>)
 
 export const updateProfile = async (id: string, updates: Partial<User>, performedBy?: string) => {
     // Map camelCase to snake_case
-    const dbUpdates: any = {};
+    const dbUpdates: Record<string, unknown> = {};
     if (updates.name) dbUpdates.name = updates.name;
     if (updates.role) dbUpdates.role = updates.role;
     if (updates.department) dbUpdates.department = updates.department;
@@ -671,9 +675,10 @@ export const createInvitation = async (email: string, role: string, department: 
         }
 
         return data;
-    } catch (error: any) {
-        console.error('createInvitation error:', error);
-        throw error;
+    } catch (error) {
+        const err = error as Error;
+        console.error('createInvitation error:', err);
+        throw err;
     }
 };
 
@@ -750,7 +755,7 @@ export const createProfile = async (profile: Omit<User, 'id'>, performedBy?: str
             throw new Error(`Failed to create employee: ${error.message}`);
         }
 
-        const newUser = data as any;
+        const newUser = data as Record<string, unknown>;
         const newUserId = newUser?.id ?? id;
 
         // Initialize leave balances
@@ -779,9 +784,10 @@ export const createProfile = async (profile: Omit<User, 'id'>, performedBy?: str
 
         queryClient.invalidateQueries({ queryKey: ['users'] });
         return newUser;
-    } catch (error: any) {
-        console.error('Unexpected error in createProfile:', error);
-        throw error;
+    } catch (error) {
+        const err = error as Error;
+        console.error('Unexpected error in createProfile:', err);
+        throw err;
     }
 };
 
@@ -796,9 +802,9 @@ export const markNotificationAsRead = async (id: string, userId: string) => {
         console.error('Error marking notification as read:', error);
         throw error;
     }
-    
+
     // Invalidate and refetch immediately
-    await queryClient.invalidateQueries({ 
+    await queryClient.invalidateQueries({
         queryKey: ['notifications', userId],
         refetchType: 'active'
     });
@@ -815,9 +821,9 @@ export const markAllNotificationsAsRead = async (userId: string) => {
         console.error('Error marking all notifications as read:', error);
         throw error;
     }
-    
+
     // Invalidate and refetch immediately
-    await queryClient.invalidateQueries({ 
+    await queryClient.invalidateQueries({
         queryKey: ['notifications', userId],
         refetchType: 'active'
     });
@@ -836,7 +842,7 @@ export const sendTwilioMessage = async (
     if (error) {
         console.error('Twilio invoke error:', error);
         // 401 usually means expired/invalid session; clear it so user can log in again
-        if (error.message?.includes('401') || (error as any)?.context?.status === 401) {
+        if (error.message?.includes('401') || (error as SupabaseError)?.context?.status === 401) {
             await supabase.auth.signOut();
         }
         return { error: error.message };
