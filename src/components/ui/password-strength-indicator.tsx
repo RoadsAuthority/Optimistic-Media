@@ -1,19 +1,7 @@
 import React from 'react';
 import { Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface Requirement {
-    label: string;
-    regex: RegExp;
-}
-
-const requirements: Requirement[] = [
-    { label: 'At least 8 characters', regex: /^.{8,}$/ },
-    { label: 'At least one uppercase letter', regex: /[A-Z]/ },
-    { label: 'At least one lowercase letter', regex: /[a-z]/ },
-    { label: 'At least one number', regex: /[0-9]/ },
-    { label: 'At least one special character', regex: /[^A-Za-z0-9]/ },
-];
+import { PASSWORD_REQUIREMENTS, validatePassword } from '@/lib/auth-utils';
 
 interface PasswordStrengthIndicatorProps {
     password: string;
@@ -21,12 +9,12 @@ interface PasswordStrengthIndicatorProps {
 }
 
 export function PasswordStrengthIndicator({ password, onValidChange }: PasswordStrengthIndicatorProps) {
-    const results = requirements.map(req => ({
+    const results = PASSWORD_REQUIREMENTS.map(req => ({
         ...req,
         met: req.regex.test(password),
     }));
 
-    const allMet = results.every(res => res.met);
+    const allMet = validatePassword(password);
 
     React.useEffect(() => {
         onValidChange?.(allMet);

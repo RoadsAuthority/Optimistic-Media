@@ -7,10 +7,11 @@ import { toast } from 'sonner';
 import { Calendar } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { requestVerificationCode, verifyPhoneCode } from '@/hooks/useData';
 import { PasswordStrengthIndicator } from '@/components/ui/password-strength-indicator';
 import { cn } from '@/lib/utils';
+import { validatePassword } from '@/lib/auth-utils';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { requestVerificationCode, verifyPhoneCode } from '@/hooks/useData';
 
 export default function LoginPage() {
     const [email, setEmail] = useState('');
@@ -119,6 +120,12 @@ export default function LoginPage() {
         setLoading(true);
 
         try {
+            if (mode === 'signup' && !validatePassword(password)) {
+                toast.error('Password does not meet requirements');
+                setLoading(false);
+                return;
+            }
+
             let result;
             if (mode === 'signup') {
                 result = await supabase.auth.signUp({

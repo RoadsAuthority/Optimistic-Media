@@ -1,4 +1,5 @@
 import { PasswordStrengthIndicator } from '@/components/ui/password-strength-indicator';
+import { validatePassword } from '@/lib/auth-utils';
 import { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
@@ -99,6 +100,12 @@ export default function AcceptInvitePage() {
 
     const handleSignup = async (e: React.FormEvent) => {
         e.preventDefault();
+
+        if (!validatePassword(password)) {
+            toast.error('Password does not meet requirements');
+            return;
+        }
+
         setVerifying(true);
 
         try {
