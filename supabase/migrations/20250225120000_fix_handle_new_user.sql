@@ -32,28 +32,41 @@ BEGIN
   LIMIT 1;
 
   IF existing_profile.id IS NOT NULL THEN
-    -- Update the old profile to match the new auth ID
-    BEGIN
-      UPDATE public.profiles
-      SET
-        id = new.id,
-        email = coalesce(existing_profile.email, new_email),
-        whatsapp = coalesce(existing_profile.whatsapp, new_whatsapp)
-      WHERE id = existing_profile.id;
-    EXCEPTION WHEN OTHERS THEN
-      -- Profile update failed, log and continue
-      RAISE WARNING 'handle_new_user: failed to update existing profile: %', SQLERRM;
-    END;
+    -- Update ALL tables that FK-reference profiles.id BEFORE changing the PK
+    -- (all constraints are NO ACTION on update, so we must do this manually)
 
-    -- Also initialize balance if not present
-    BEGIN
-      INSERT INTO public.leave_balances (user_id, leave_type_id, total_days, remaining_days, used_days)
-      SELECT new.id, id, annual_allowance, annual_allowance, 0
-      FROM public.leave_types
-      ON CONFLICT DO NOTHING;
-    EXCEPTION WHEN OTHERS THEN
-      RAISE WARNING 'handle_new_user: failed to initialize balances: %', SQLERRM;
-    END;
+    UPDATE public.leave_balances
+      SET user_id = new.id WHERE user_id = existing_profile.id;
+
+    UPDATE public.leave_requests
+      SET user_id = new.id WHERE user_id = existing_profile.id;
+
+    UPDATE public.notifications
+      SET user_id = new.id WHERE user_id = existing_profile.id;
+
+    UPDATE public.audit_logs
+      SET performed_by = new.id WHERE performed_by = existing_profile.id;
+
+    UPDATE public.invitations
+      SET manager_id = new.id WHERE manager_id = existing_profile.id;
+
+    -- Self-referential: other profiles managed by this user
+    UPDATE public.profiles
+      SET manager_id = new.id WHERE manager_id = existing_profile.id;
+
+    -- Now safe to update the profile's own PK
+    UPDATE public.profiles
+    SET
+      id = new.id,
+      email = coalesce(existing_profile.email, new_email),
+      whatsapp = coalesce(existing_profile.whatsapp, new_whatsapp)
+    WHERE id = existing_profile.id;
+
+    -- Initialize balances if not yet present
+    INSERT INTO public.leave_balances (user_id, leave_type_id, total_days, remaining_days, used_days)
+    SELECT new.id, id, annual_allowance, annual_allowance, 0
+    FROM public.leave_types
+    ON CONFLICT DO NOTHING;
 
     RETURN new;
   END IF;
