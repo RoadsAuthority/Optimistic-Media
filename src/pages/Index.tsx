@@ -4,7 +4,7 @@ import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { StatCard } from '@/components/dashboard/StatCard';
 import { LeaveBalanceCard } from '@/components/dashboard/LeaveBalanceCard';
 import { RecentRequestsTable } from '@/components/dashboard/RecentRequestsTable';
-import { UpcomingLeaveWidget } from '@/components/dashboard/UpcomingLeaveWidget';
+import { UpcomingLeaveWidget, OnLeaveTodayWidget } from '@/components/dashboard/UpcomingLeaveWidget';
 import { PendingApprovalsCard } from '@/components/dashboard/PendingApprovalsCard';
 import { useLeaveBalances, useLeaveRequests, useUsers, useLeaveTypes } from '@/hooks/useData';
 import {
@@ -247,6 +247,7 @@ function ManagerDashboard() {
           </div>
           <div className="space-y-6">
             <PendingApprovalsCard requests={teamRequests} />
+            <OnLeaveTodayWidget requests={teamRequests} />
             <UpcomingLeaveWidget requests={teamRequests} />
           </div>
         </div>
@@ -377,6 +378,7 @@ function AdminDashboard() {
           </div>
           <div className="space-y-6">
             <PendingApprovalsCard requests={approvableRequests} />
+            <OnLeaveTodayWidget requests={allRequests} />
             <UpcomingLeaveWidget requests={allRequests} />
           </div>
         </div>
@@ -476,6 +478,7 @@ function HRDashboard() {
           </div>
           <div className="space-y-6">
             <PendingApprovalsCard requests={leaveRequests} />
+            <OnLeaveTodayWidget requests={leaveRequests} />
             <UpcomingLeaveWidget requests={leaveRequests} />
           </div>
         </div>
